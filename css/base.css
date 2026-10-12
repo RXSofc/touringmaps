@@ -1,0 +1,90 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: var(--color-bg);
+  /* faint survey-grid texture: hard lines, no soft gradients */
+  background-image:
+    linear-gradient(rgba(23, 23, 23, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 23, 23, 0.045) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--color-text);
+  font: 400 1rem/1.5 var(--font-body);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+body.has-sheet { overflow: hidden; }
+
+h1, h2, h3, h4 {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+h1 { font-size: clamp(1.9rem, 6vw, 3rem); text-transform: uppercase; }
+h2 { font-size: 1.35rem; }
+h3 { font-size: 1.05rem; }
+
+p { margin: 0 0 var(--space-3); }
+a { color: inherit; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+a:hover { background: var(--color-primary); }
+
+small, .small { font-size: 0.8125rem; }
+.muted { color: var(--color-text-soft); }
+.mono { font-family: var(--font-mono); font-size: 0.875em; letter-spacing: -0.01em; }
+
+img, svg { max-width: 100%; }
+
+:focus-visible {
+  outline: 3px solid var(--color-text);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--color-accent);
+}
+
+.skip-link {
+  position: absolute;
+  left: var(--space-3);
+  top: -4rem;
+  z-index: 5000;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-primary);
+  border: var(--border-2);
+  font-weight: 700;
+}
+.skip-link:focus { top: var(--space-3); }
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+[hidden] { display: none !important; }
+
+.noscript { padding: var(--space-4); font-weight: 700; }
+
+::selection { background: var(--color-primary); color: var(--color-text); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* the loading spinner is feedback, not decoration: keep it, but slower */
+  .spinner { animation: spin 1.6s linear infinite !important; animation-duration: 1.6s !important; animation-iteration-count: infinite !important; }
+}

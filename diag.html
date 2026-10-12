@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Diagnosa TouringTogether</title>
+  <style>
+    body { font: 16px/1.45 system-ui, sans-serif; margin: 0; padding: 16px; background: #F4F0E6; color: #171717; }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; text-transform: uppercase; }
+    .card { background: #fff; border: 3px solid #171717; box-shadow: 4px 4px 0 #171717; padding: 12px; margin: 14px 0; }
+    label { display: block; font-weight: 700; font-size: .8rem; text-transform: uppercase; margin-top: 8px; }
+    input { width: 100%; box-sizing: border-box; padding: 10px; border: 3px solid #171717; font-size: 16px; margin: 4px 0; }
+    button { padding: 12px 16px; border: 3px solid #171717; background: #C7F36B; font: 700 16px system-ui; box-shadow: 3px 3px 0 #171717; margin-top: 8px; }
+    pre { white-space: pre-wrap; word-break: break-word; font-size: 13px; margin: 6px 0 0; }
+    .ok { color: #1F7A4A; font-weight: 700; } .bad { color: #C5362F; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>Diagnosa</h1>
+  <p>Halaman ini mengecek file di server dan menguji Firebase langsung. Kirim screenshot hasilnya ke Claude.</p>
+
+  <div class="card"><b>1. File yang terpasang</b><pre id="files">memeriksa…</pre></div>
+
+  <div class="card">
+    <b>2. Tes Firebase (membuat akun sungguhan)</b>
+    <label for="name">Nama tampilan</label><input id="name" value="Rider">
+    <label for="email">Email</label><input id="email" type="email" autocomplete="off">
+    <label for="pw">Password (min 8)</label><input id="pw" type="password" autocomplete="off">
+    <button id="go" type="button">Jalankan tes</button>
+    <pre id="out"></pre>
+  </div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const line = (el, text, cls) => { const s = document.createElement('div'); if (cls) s.className = cls; s.textContent = text; el.append(s); };
+let cfg = null, APP = {};
+const filesEl = $('files'); filesEl.textContent = '';
+
+try {
+  const m = await import('./js/config.js?t=' + Date.now());
+  cfg = m.firebaseConfig; APP = m.APP || {};
+  line(filesEl, 'config.js: terbaca. build = ' + (APP.version || '(tidak ada → config.js LAMA)'), APP.version ? 'ok' : 'bad');
+  line(filesEl, 'projectId = ' + cfg.projectId + ' | placeholder? ' + (String(cfg.apiKey).startsWith('YOUR_') ? 'YA (belum diisi)' : 'tidak'), String(cfg.apiKey).startsWith('YOUR_') ? 'bad' : 'ok');
+} catch (e) { line(filesEl, 'config.js GAGAL dibaca: ' + e.message, 'bad'); }
+
+const get = async (p) => { try { const r = await fetch(p + '?t=' + Date.now(), { cache: 'no-store' }); return r.ok ? await r.text() : 'HTTP ' + r.status; } catch (e) { return 'ERR ' + e.message; } };
+const auth = await get('js/auth.js');
+line(filesEl, 'js/auth.js: ' + (auth.includes('Something went wrong (') ? 'BARU ✔' : 'LAMA ✘ (upload ulang js/auth.js)'), auth.includes('Something went wrong (') ? 'ok' : 'bad');
+const sw = await get('sw.js');
+line(filesEl, 'sw.js: ' + (sw.includes('tt-v2') ? 'BARU ✔' : 'LAMA ✘ (upload ulang sw.js)'), sw.includes('tt-v2') ? 'ok' : 'bad');
+try {
+  const regs = navigator.serviceWorker ? await navigator.serviceWorker.getRegistrations() : [];
+  line(filesEl, 'service worker aktif di browser ini: ' + regs.length + (regs.length ? ' (bisa menyimpan file lama; hapus data situs)' : ''));
+  window.__regs = regs;
+} catch { /* ignore */ }
+line(filesEl, 'alamat: ' + location.href);
+
+const hint = (msg) => {
+  const m = String(msg);
+  if (m.includes('CONFIGURATION_NOT_FOUND')) return 'Authentication belum diaktifkan. Firebase console → Build → Authentication → klik "Get started".';
+  if (m.includes('OPERATION_NOT_ALLOWED')) return 'Metode Email/Password belum aktif. Authentication → Sign-in method → Email/Password → Enable.';
+  if (m.includes('API_KEY_INVALID') || m.includes('API key not valid')) return 'apiKey salah. Salin ulang dari Project settings → Your apps.';
+  if (m.includes('referer') || m.includes('REFERRER')) return 'API key dibatasi domain. Google Cloud → APIs & Services → Credentials → izinkan domain github.io kamu.';
+  if (m.includes('WEAK_PASSWORD')) return 'Password terlalu lemah (minimal 8 karakter di aplikasi ini).';
+  if (m.includes('INVALID_EMAIL')) return 'Format email tidak valid.';
+  if (m.includes('Permission denied') || m.includes('PERMISSION_DENIED')) return 'Rules database menolak. Publish ulang firebase/database.rules.json di Realtime Database → Rules.';
+  if (m.includes('Firebase error') || m.includes('404')) return 'databaseURL salah atau Realtime Database belum dibuat.';
+  return '';
+};
+
+$('go').addEventListener('click', async () => {
+  const out = $('out'); out.textContent = '';
+  const email = $('email').value.trim(), password = $('pw').value, name = $('name').value.trim() || 'Rider';
+  if (!cfg) { line(out, 'config.js tidak terbaca, tes dibatalkan.', 'bad'); return; }
+  const post = async (url, body) => { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); return { status: r.status, json: await r.json().catch(() => ({})) }; };
+  const base = 'https://identitytoolkit.googleapis.com/v1/accounts:';
+  const key = '?key=' + encodeURIComponent(cfg.apiKey);
+  try {
+    line(out, 'A. Membuat akun…');
+    let res = await post(base + 'signUp' + key, { email, password, returnSecureToken: true });
+    if (res.json?.error?.message === 'EMAIL_EXISTS') { line(out, 'Email sudah terdaftar → mencoba masuk…'); res = await post(base + 'signInWithPassword' + key, { email, password, returnSecureToken: true }); }
+    if (res.status !== 200) { const m = res.json?.error?.message || JSON.stringify(res.json); line(out, 'GAGAL (HTTP ' + res.status + '): ' + m, 'bad'); const h = hint(m); if (h) line(out, '→ ' + h, 'bad'); return; }
+    line(out, 'Auth OK ✔ (uid ' + res.json.localId.slice(0, 6) + '…)', 'ok');
+
+    line(out, 'B. Menulis profil ke Realtime Database…');
+    const put = await fetch(cfg.databaseURL.replace(/\/$/, '') + '/users/' + res.json.localId + '.json?auth=' + encodeURIComponent(res.json.idToken), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayName: name, createdAt: Date.now() })
+    });
+    const text = await put.text();
+    if (!put.ok) { line(out, 'GAGAL (HTTP ' + put.status + '): ' + text.slice(0, 200), 'bad'); const h = hint(text) || (put.status === 404 ? hint('404') : ''); if (h) line(out, '→ ' + h, 'bad'); return; }
+    line(out, 'Database OK ✔ — profil tersimpan. Pendaftaran seharusnya berhasil di aplikasi.', 'ok');
+  } catch (e) {
+    line(out, 'Error jaringan: ' + e.message, 'bad');
+  }
+});
+</script>
+</body>
+</html>

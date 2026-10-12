@@ -1,0 +1,56 @@
+/* Mobile-first: base styles target phones. Larger screens add room, not new features. */
+
+@media (max-width: 420px) {
+  .hide-sm { display: none; }
+  .topbar__chips .chip { font-size: 0.64rem; }
+  .btn { padding-left: 0.8rem; padding-right: 0.8rem; }
+}
+
+@media (min-width: 720px) {
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .auth-shell { grid-template-columns: 1.1fr 1fr; align-items: center; gap: var(--space-6); }
+  .auth-hero { min-height: 420px; display: flex; flex-direction: column; justify-content: flex-end; transform: rotate(-1deg); }
+  .auth-card { transform: rotate(0.6deg); }
+  .auth-shell > .card.setup-card { grid-column: 1 / -1; max-width: 640px; margin: 0 auto; }
+
+  /* sheets become centered dialogs */
+  .backdrop { align-items: center; }
+  .sheet { border-bottom: var(--border-2); border-radius: var(--radius); box-shadow: var(--shadow-lg); max-height: 86vh; }
+
+  /* touring: side panels instead of full-width bottom overlays */
+  .rider-panel, .rider-card {
+    right: auto;
+    width: 340px;
+    left: var(--space-3);
+    bottom: var(--space-3);
+  }
+  .rider-card { bottom: var(--space-3); }
+  .rider-panel:not([hidden]) ~ .rider-card:not([hidden]) { bottom: auto; top: var(--space-3); }
+  .dest-panel {
+    right: auto;
+    left: auto;
+    width: 420px;
+    right: calc(var(--space-3) + 56px);
+    bottom: var(--space-3);
+    max-height: 80%;
+  }
+  .gps-gate { right: auto; left: 50%; bottom: auto; top: 50%; width: min(480px, 90%); transform: translate(-50%, -50%); }
+  .alerts { max-width: 460px; right: auto; }
+  .map-controls { right: var(--space-3); }
+  .legend { right: calc(var(--space-3) + 56px); }
+  .dock { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; padding-left: var(--space-3); padding-right: var(--space-3); }
+}
+
+@media (min-width: 1024px) {
+  .dock { max-width: none; }
+  .topbar__name { font-size: 1.2rem; }
+}
+
+/* short landscape screens: reclaim vertical space for the map */
+@media (max-height: 480px) and (orientation: landscape) {
+  .topbar { min-height: 44px; padding-top: calc(4px + var(--safe-top)); padding-bottom: 4px; }
+  .topbar__chips { flex-direction: row; }
+  .dock { grid-template-columns: 1fr 1fr; padding-top: 4px; padding-bottom: calc(4px + var(--safe-bottom)); }
+  .btn { min-height: 40px; }
+  .rider-panel, .rider-card { max-height: 80%; }
+}

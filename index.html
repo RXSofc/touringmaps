@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#C7F36B">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="TouringTogether: private, real-time coordination for motorcycle touring groups.">
+  <title>TouringTogether</title>
+
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+
+  <!-- Fonts: optional. Every stack in css/tokens.css has system fallbacks. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Space+Grotesk:wght@500;700&display=swap">
+
+  <!-- Leaflet CSS/JS are loaded by js/app.js (vendor/leaflet first, then CDN fallback). -->
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+  <a class="skip-link" href="#app">Skip to content</a>
+
+  <main id="app" class="app" tabindex="-1">
+    <div class="boot" role="status">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Loading TouringTogether…</span>
+    </div>
+  </main>
+
+  <div id="toasts" class="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
+
+  <noscript>
+    <p class="noscript">TouringTogether needs JavaScript to run.</p>
+  </noscript>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

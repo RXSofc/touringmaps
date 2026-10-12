@@ -1,0 +1,52 @@
+/* Design tokens: TouringTogether Neo-Brutalist system */
+:root {
+  /* Palette (spec starting point, refined for contrast) */
+  --color-bg: #F4F0E6;
+  --color-surface: #FFFFFF;
+  --color-text: #171717;
+  --color-text-soft: #4A463E;      /* 8.3:1 on --color-bg */
+  --color-border: #171717;
+  --color-primary: #C7F36B;
+  --color-primary-strong: #B3E64D;
+  --color-secondary: #FF765E;
+  --color-accent: #79B8FF;
+  --color-muted: #E5E1D7;
+  --color-success: #1F7A4A;        /* white text 5.4:1 */
+  --color-warning: #F4C95D;
+  --color-danger: #C5362F;         /* white text 5.5:1 */
+  --color-on-dark: #FFFFFF;
+
+  /* Typography */
+  --font-display: 'Space Grotesk', 'Arial Black', 'Helvetica Neue', Arial, system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* Borders, shadows, radii: hard offsets only, no blur */
+  --border-1: 2px solid var(--color-border);
+  --border-2: 3px solid var(--color-border);
+  --shadow-sm: 3px 3px 0 var(--color-border);
+  --shadow: 4px 4px 0 var(--color-border);
+  --shadow-lg: 6px 6px 0 var(--color-border);
+  --radius-sm: 3px;
+  --radius: 6px;
+
+  /* Spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2.5rem;
+
+  /* Safe areas (notches / gesture bars in Android WebView) */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  --topbar-h: 56px;
+  --z-map-overlay: 10;
+  --z-panel: 20;
+  --z-sheet: 2000;
+  --z-toast: 3000;
+}
