@@ -153,6 +153,34 @@
           "$other": { ".validate": false }
         },
 
+        "voice": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && root.child('rooms').child($roomId).child('members').child($uid).exists()",
+            ".validate": "newData.hasChildren(['talking', 'at'])",
+            "talking": { ".validate": "newData.val() === true" },
+            "at": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        },
+
+        "rtc": {
+          "$to": {
+            ".write": "auth != null && auth.uid === $to && !newData.exists()",
+            "$from": {
+              ".write": "auth != null && auth.uid === $from && !newData.exists()",
+              "$msg": {
+                ".write": "auth != null && ((auth.uid === $from && !data.exists() && newData.exists() && root.child('rooms').child($roomId).child('members').child($from).exists() && root.child('rooms').child($roomId).child('members').child($to).exists()) || (!newData.exists() && (auth.uid === $to || auth.uid === $from)))",
+                ".validate": "newData.hasChildren(['t', 'sid', 'd', 'at'])",
+                "t": { ".validate": "newData.val() === 'offer' || newData.val() === 'answer' || newData.val() === 'ice' || newData.val() === 'bye'" },
+                "sid": { ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9]{8,24}$/)" },
+                "d": { ".validate": "newData.isString() && newData.val().length <= 8000" },
+                "at": { ".validate": "newData.isNumber() && newData.val() <= now + 5000" },
+                "$other": { ".validate": false }
+              }
+            }
+          }
+        },
+
         "banned": {
           "$uid": {
             ".write": "auth != null && root.child('rooms').child($roomId).child('ownerUid').val() === auth.uid",

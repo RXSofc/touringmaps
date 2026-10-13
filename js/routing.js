@@ -6,51 +6,88 @@
  * What this is NOT: live traffic, road closures, a motorcycle-validated route
  * or turn-by-turn guidance. The UI says so wherever an ETA is shown.
  */
-import { APP } from './config.js';
-import { fetchJson, NetError } from './net.js';
+import { MAP_CONFIG, usableProviders } from './map-config.js';
+import { fetchJson, NetError, sleep } from './net.js';
 import { haversine, distanceToPolyline, isValidPoint } from './geo.js';
 
 export class RouteError extends Error {
   constructor(code, message) { super(message); this.name = 'RouteError'; this.code = code; }
 }
 
+const R = MAP_CONFIG.routing;
+const runtime = new Map();   // provider id -> {lastAt, coolUntil}
+const rt = (id) => { let r = runtime.get(id); if (!r) { r = { lastAt: 0, coolUntil: 0 }; runtime.set(id, r); } return r; };
+const RETRY_NEXT = new Set(['timeout', 'network', 'rate-limit', 'service', 'invalid']);
+
+function mapNetError(err) {
+  if (err instanceof NetError) {
+    if (err.kind === 'aborted') return new RouteError('aborted', 'Route request cancelled.');
+    if (err.kind === 'timeout') return new RouteError('timeout', 'The routing service is too slow right now.');
+    if (err.kind === 'network') return new RouteError('network', 'No connection to the routing service.');
+    if (err.kind === 'http' && (err.status === 429 || err.status === 403)) return new RouteError('rate-limit', 'The routing service is rate-limiting requests. Try again in a minute.');
+    if (err.kind === 'http' && err.status === 400) return new RouteError('no-route', 'No road route was found between these points.');
+    return new RouteError('service', 'The routing service had a problem.');
+  }
+  return err;
+}
+
+/** OSRM-compatible adapter (also fits self-hosted OSRM and most OSRM-style hosted services). */
+const ADAPTERS = {
+  async osrm(p, from, to, signal) {
+    const coords = `${from.longitude.toFixed(6)},${from.latitude.toFixed(6)};${to.longitude.toFixed(6)},${to.latitude.toFixed(6)}`;
+    const url = new URL(`${p.baseUrl.replace(/\/+$/, '')}/${coords}`);
+    url.searchParams.set('overview', R.overview);
+    url.searchParams.set('geometries', 'geojson');
+    url.searchParams.set('steps', 'false');
+    url.searchParams.set('alternatives', 'false');
+    if (p.apiKeyParam && p.apiKey) url.searchParams.set(p.apiKeyParam, p.apiKey);
+    const data = await fetchJson(url.toString(), { signal, timeoutMs: R.timeoutMs });
+    if (data?.code === 'NoRoute') throw new RouteError('no-route', 'No road route was found between these points.');
+    const route = data?.code === 'Ok' ? data.routes?.[0] : null;
+    const line = route?.geometry?.coordinates;
+    if (!route || !Array.isArray(line) || line.length < 2 || !Number.isFinite(route.distance)) {
+      throw new RouteError('invalid', 'The routing service sent an unusable answer.');
+    }
+    return {
+      coords: line.map(([lng, lat]) => [lat, lng]),
+      distanceMeters: route.distance,
+      durationSeconds: Number.isFinite(route.duration) ? route.duration : NaN
+    };
+  }
+};
+
 /**
+ * Calculates a road route, trying each configured routing provider in order.
+ * Providers that are rate-limiting are skipped for a cool-down; "no route" is
+ * final (another provider would say the same) and goes straight to the user.
  * @param {{latitude:number,longitude:number}} from
  * @param {{latitude:number,longitude:number}} to
- * @returns {Promise<{coords:number[][], distanceMeters:number, durationSeconds:number}>}
+ * @returns {Promise<{coords:number[][], distanceMeters:number, durationSeconds:number, provider:string, providerLabel:string, isFallback:boolean}>}
  */
 export async function fetchRoute(from, to, { signal } = {}) {
   if (!isValidPoint(from) || !isValidPoint(to)) throw new RouteError('invalid', 'Both route points need valid coordinates.');
-  const r = APP.routing;
-  const coords = `${from.longitude.toFixed(6)},${from.latitude.toFixed(6)};${to.longitude.toFixed(6)},${to.latitude.toFixed(6)}`;
-  const url = `${r.baseUrl}/${coords}?overview=${r.overview}&geometries=geojson&steps=false&alternatives=false`;
+  const chain = usableProviders('routing').filter((p) => ADAPTERS[p.type]);
+  if (!chain.length) throw new RouteError('unavailable', 'No routing service is configured. Use “Open in Maps” for directions.');
 
-  let data;
-  try {
-    data = await fetchJson(url, { signal, timeoutMs: r.timeoutMs });
-  } catch (err) {
-    if (err instanceof NetError) {
-      if (err.kind === 'aborted') throw new RouteError('aborted', 'Route request cancelled.');
-      if (err.kind === 'timeout') throw new RouteError('timeout', 'The routing service is too slow right now.');
-      if (err.kind === 'network') throw new RouteError('network', 'No connection to the routing service.');
-      if (err.kind === 'http' && err.status === 429) throw new RouteError('rate-limit', 'The routing service is rate-limiting requests. Try again in a minute.');
-      if (err.kind === 'http' && err.status === 400) throw new RouteError('no-route', 'No road route was found between these points.');
-      throw new RouteError('service', 'The routing service had a problem.');
+  let lastErr = null;
+  for (const p of chain) {
+    const r = rt(p.id);
+    if (Date.now() < r.coolUntil) { lastErr ||= new RouteError('rate-limit', 'The routing service is rate-limiting requests. Try again in a minute.'); continue; }
+    try {
+      const wait = Math.max(0, r.lastAt + (p.minIntervalMs || 0) - Date.now());
+      r.lastAt = Date.now() + wait;
+      if (wait) await sleep(wait, signal);
+      const result = await ADAPTERS[p.type](p, from, to, signal);
+      return { ...result, provider: p.id, providerLabel: p.label, isFallback: p.id !== chain[0].id };
+    } catch (raw) {
+      const err = mapNetError(raw);
+      if (err.code === 'aborted' || err.code === 'no-route') throw err;
+      if (err.code === 'rate-limit') r.coolUntil = Date.now() + R.cooldownMs;
+      if (!RETRY_NEXT.has(err.code)) throw err;
+      lastErr = err;
     }
-    throw err;
   }
-
-  if (data?.code === 'NoRoute') throw new RouteError('no-route', 'No road route was found between these points.');
-  const route = data?.code === 'Ok' ? data.routes?.[0] : null;
-  const line = route?.geometry?.coordinates;
-  if (!route || !Array.isArray(line) || line.length < 2 || !Number.isFinite(route.distance)) {
-    throw new RouteError('invalid', 'The routing service sent an unusable answer.');
-  }
-  return {
-    coords: line.map(([lng, lat]) => [lat, lng]),
-    distanceMeters: route.distance,
-    durationSeconds: Number.isFinite(route.duration) ? route.duration : NaN
-  };
+  throw lastErr || new RouteError('service', 'The routing service had a problem.');
 }
 
 /** Links that hand navigation to a dedicated maps app. */
@@ -115,7 +152,7 @@ export class RouteManager {
     this.origin = point;
     if (!this.destination || !this.enabled) return;
     const { status, route } = this.state;
-    const r = APP.routing;
+    const r = R;
     const sinceLast = Date.now() - this.lastRequestAt;
 
     if (status === 'loading') return;
@@ -138,7 +175,7 @@ export class RouteManager {
   /** User-requested refresh. */
   refresh() {
     if (!this.destination || !this.origin) return false;
-    if (Date.now() - this.lastRequestAt < APP.routing.manualMinIntervalMs) return false;
+    if (Date.now() - this.lastRequestAt < R.manualMinIntervalMs) return false;
     this._request('manual', true);
     return true;
   }

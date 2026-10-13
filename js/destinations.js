@@ -3,12 +3,12 @@
  * coordinate parsing. Pure browser code, no Firebase. Saving a destination
  * lives in rooms.js.
  */
-import { APP } from './config.js';
+import { MAP_CONFIG, usableProviders } from './map-config.js';
 import { fetchJson, sleep, NetError } from './net.js';
 import { isValidLat, isValidLng, roundTo } from './geo.js';
 
 export class GeocodeError extends Error {
-  /** @param {'empty'|'short'|'timeout'|'network'|'rate-limit'|'service'|'invalid'|'aborted'} code */
+  /** @param {'empty'|'short'|'timeout'|'network'|'rate-limit'|'service'|'invalid'|'aborted'|'unavailable'} code */
   constructor(code, message) {
     super(message);
     this.name = 'GeocodeError';
@@ -56,37 +56,53 @@ export function parseCoordinates(text) {
 }
 
 /* -------------------------------------------------------------- Geocoding */
+/*
+ * Providers come from js/map-config.js. Each one has an adapter by `type`.
+ * Search walks the provider chain: a provider that is rate-limiting, slow,
+ * offline or broken is skipped (and cooled down after a 429/403) and the next is
+ * tried. Manual coordinates never depend on any of this.
+ */
 
+const G = MAP_CONFIG.geocoder;
 const cache = new Map();
-let lastRequestAt = 0;
+const runtime = new Map();   // provider id -> {lastAt, coolUntil}
+const rt = (id) => { let r = runtime.get(id); if (!r) { r = { lastAt: 0, coolUntil: 0 }; runtime.set(id, r); } return r; };
 
-function cacheKey(kind, value) { return `${APP.geocoder.provider}|${kind}|${value}`; }
+const cacheKey = (kind, value) => `${kind}|${value}`;
 
-function withLanguage(url) {
-  const { language, provider } = APP.geocoder;
-  if (language) url.searchParams.set(provider === 'photon' ? 'lang' : 'accept-language', language);
+function endpoint(p, path) {
+  const url = new URL(`${p.baseUrl.replace(/\/+$/, '')}${path}`);
+  if (p.apiKeyParam && p.apiKey) url.searchParams.set(p.apiKeyParam, p.apiKey);
   return url;
 }
 
-async function throttled(signal) {
-  const wait = Math.max(0, lastRequestAt + APP.geocoder.minIntervalMs - Date.now());
+function localise(url, p) {
+  if (G.language) url.searchParams.set(p.type === 'photon' ? 'lang' : 'accept-language', G.language);
+  if (G.contactEmail && p.type === 'nominatim' && p.id === 'nominatim') url.searchParams.set('email', G.contactEmail);
+  return url;
+}
+
+async function throttled(p, signal) {
+  const r = rt(p.id);
+  const wait = Math.max(0, r.lastAt + p.minIntervalMs - Date.now());
+  r.lastAt = Date.now() + wait;
   if (wait) await sleep(wait, signal);
-  lastRequestAt = Date.now();
 }
 
 function mapNetError(err) {
   if (err instanceof NetError) {
     if (err.kind === 'aborted') return new GeocodeError('aborted', 'Search cancelled.');
-    if (err.kind === 'timeout') return new GeocodeError('timeout', 'The search service is too slow right now. Try again.');
+    if (err.kind === 'timeout') return new GeocodeError('timeout', 'The search service is too slow right now.');
     if (err.kind === 'network') return new GeocodeError('network', 'No connection. Check your internet and try again.');
-    if (err.kind === 'http' && (err.status === 429 || err.status === 403)) {
-      return new GeocodeError('rate-limit', 'Too many searches. Wait a few seconds and try again.');
-    }
+    if (err.kind === 'http' && (err.status === 429 || err.status === 403)) return new GeocodeError('rate-limit', 'The search service is limiting requests.');
     if (err.kind === 'parse') return new GeocodeError('invalid', 'The search service sent an unreadable answer.');
-    return new GeocodeError('service', 'The search service had a problem. Try again shortly.');
+    return new GeocodeError('service', 'The search service had a problem.');
   }
   return err;
 }
+
+const MANUAL_HINT = ' You can still enter coordinates manually.';
+const RETRY_NEXT = new Set(['timeout', 'network', 'rate-limit', 'service', 'invalid']);
 
 function normalizeNominatim(item) {
   const latitude = Number(item?.lat);
@@ -109,48 +125,95 @@ function normalizePhoton(feature) {
   return { name, address: address || name, latitude: roundTo(latitude, 6), longitude: roundTo(longitude, 6), source: 'geocoding' };
 }
 
+const ADAPTERS = {
+  nominatim: {
+    async search(p, q, signal) {
+      const url = localise(endpoint(p, '/search'), p);
+      url.searchParams.set('format', 'jsonv2');
+      url.searchParams.set('q', q);
+      url.searchParams.set('limit', String(G.limit));
+      url.searchParams.set('addressdetails', '0');
+      if (G.countryCodes) url.searchParams.set('countrycodes', G.countryCodes);
+      const data = await fetchJson(url.toString(), { signal, timeoutMs: G.timeoutMs });
+      if (!Array.isArray(data)) throw new NetError('parse', 'unexpected answer');
+      return data.map(normalizeNominatim);
+    },
+    async reverse(p, lat, lng, signal) {
+      const url = localise(endpoint(p, '/reverse'), p);
+      url.searchParams.set('format', 'jsonv2');
+      url.searchParams.set('lat', String(lat));
+      url.searchParams.set('lon', String(lng));
+      url.searchParams.set('zoom', '17');
+      const data = await fetchJson(url.toString(), { signal, timeoutMs: G.timeoutMs });
+      return data && !data.error ? normalizeNominatim({ ...data, lat: data.lat ?? lat, lon: data.lon ?? lng }) : null;
+    }
+  },
+  photon: {
+    async search(p, q, signal) {
+      const url = localise(endpoint(p, '/api/'), p);
+      url.searchParams.set('q', q);
+      url.searchParams.set('limit', String(G.limit));
+      const data = await fetchJson(url.toString(), { signal, timeoutMs: G.timeoutMs });
+      if (!data || !Array.isArray(data.features)) throw new NetError('parse', 'unexpected answer');
+      return data.features.map(normalizePhoton);
+    },
+    async reverse(p, lat, lng, signal) {
+      const url = localise(endpoint(p, '/reverse'), p);
+      url.searchParams.set('lat', String(lat));
+      url.searchParams.set('lon', String(lng));
+      const data = await fetchJson(url.toString(), { signal, timeoutMs: G.timeoutMs });
+      const f = data?.features?.[0];
+      return f ? normalizePhoton(f) : null;
+    }
+  }
+};
+
+/** Runs `op` against each usable provider in turn until one answers. */
+async function viaChain(op, signal) {
+  const chain = usableProviders('geocoder').filter((p) => ADAPTERS[p.type]);
+  if (!chain.length) throw new GeocodeError('unavailable', `Place search is not configured.${MANUAL_HINT}`);
+  let lastErr = null;
+  for (const p of chain) {
+    const r = rt(p.id);
+    if (Date.now() < r.coolUntil) { lastErr ||= new GeocodeError('rate-limit', 'The search service is limiting requests.'); continue; }
+    try {
+      await throttled(p, signal);
+      const value = await op(ADAPTERS[p.type], p);
+      return { value, provider: p };
+    } catch (raw) {
+      const err = mapNetError(raw);
+      if (err.code === 'aborted') throw err;
+      if (err.code === 'rate-limit') r.coolUntil = Date.now() + G.cooldownMs;
+      if (!RETRY_NEXT.has(err.code)) throw err;
+      lastErr = err;
+    }
+  }
+  const e = lastErr || new GeocodeError('service', 'The search service had a problem.');
+  throw new GeocodeError(e.code, `${e.message}${MANUAL_HINT}`);
+}
+
 /**
  * Searches places by name.
+ * The returned array has a non-enumerable `provider` id telling which service answered.
  * @returns {Promise<Array<{name,address,latitude,longitude,source}>>}
  * @throws {GeocodeError}
  */
 export async function searchPlaces(query, { signal } = {}) {
   const q = String(query ?? '').replace(/\s+/g, ' ').trim();
   if (!q) throw new GeocodeError('empty', 'Type a place name or address.');
-  if (q.length < APP.geocoder.minChars) throw new GeocodeError('short', `Type at least ${APP.geocoder.minChars} characters.`);
+  if (q.length < G.minChars) throw new GeocodeError('short', `Type at least ${G.minChars} characters.`);
 
   const key = cacheKey('search', q.toLowerCase());
   if (cache.has(key)) return cache.get(key);
 
-  try {
-    await throttled(signal);
-    const g = APP.geocoder;
-    let results;
-    if (g.provider === 'photon') {
-      const url = withLanguage(new URL('/api/', g.photonUrl));
-      url.searchParams.set('q', q);
-      url.searchParams.set('limit', String(g.limit));
-      const data = await fetchJson(url.toString(), { signal, timeoutMs: g.timeoutMs });
-      if (!data || !Array.isArray(data.features)) throw new GeocodeError('invalid', 'The search service sent an unexpected answer.');
-      results = data.features.map(normalizePhoton);
-    } else {
-      const url = withLanguage(new URL('/search', g.nominatimUrl));
-      url.searchParams.set('format', 'jsonv2');
-      url.searchParams.set('q', q);
-      url.searchParams.set('limit', String(g.limit));
-      url.searchParams.set('addressdetails', '0');
-      if (g.countryCodes) url.searchParams.set('countrycodes', g.countryCodes);
-      const data = await fetchJson(url.toString(), { signal, timeoutMs: g.timeoutMs });
-      if (!Array.isArray(data)) throw new GeocodeError('invalid', 'The search service sent an unexpected answer.');
-      results = data.map(normalizeNominatim);
-    }
-    const clean = results.filter(Boolean);
-    cache.set(key, clean);
-    if (cache.size > 40) cache.delete(cache.keys().next().value);
-    return clean;
-  } catch (err) {
-    throw mapNetError(err);
-  }
+  const { value, provider } = await viaChain((adapter, p) => adapter.search(p, q, signal), signal);
+  const clean = value.filter(Boolean);
+  Object.defineProperty(clean, 'provider', { value: provider.id, enumerable: false });
+  Object.defineProperty(clean, 'providerLabel', { value: provider.label, enumerable: false });
+  Object.defineProperty(clean, 'isFallback', { value: provider.id !== usableProviders('geocoder')[0]?.id, enumerable: false });
+  cache.set(key, clean);
+  if (cache.size > 40) cache.delete(cache.keys().next().value);
+  return clean;
 }
 
 /**
@@ -160,32 +223,10 @@ export async function searchPlaces(query, { signal } = {}) {
 export async function reverseGeocode(latitude, longitude, { signal } = {}) {
   const key = cacheKey('reverse', `${roundTo(latitude, 4)},${roundTo(longitude, 4)}`);
   if (cache.has(key)) return cache.get(key);
-  try {
-    await throttled(signal);
-    const g = APP.geocoder;
-    let result = null;
-    if (g.provider === 'photon') {
-      const url = withLanguage(new URL('/reverse', g.photonUrl));
-      url.searchParams.set('lat', String(latitude));
-      url.searchParams.set('lon', String(longitude));
-      const data = await fetchJson(url.toString(), { signal, timeoutMs: g.timeoutMs });
-      const f = data?.features?.[0];
-      result = f ? normalizePhoton(f) : null;
-    } else {
-      const url = withLanguage(new URL('/reverse', g.nominatimUrl));
-      url.searchParams.set('format', 'jsonv2');
-      url.searchParams.set('lat', String(latitude));
-      url.searchParams.set('lon', String(longitude));
-      url.searchParams.set('zoom', '17');
-      const data = await fetchJson(url.toString(), { signal, timeoutMs: g.timeoutMs });
-      result = data && !data.error ? normalizeNominatim({ ...data, lat: data.lat ?? latitude, lon: data.lon ?? longitude }) : null;
-    }
-    if (!result) throw new GeocodeError('invalid', 'No place name found for these coordinates.');
-    // Keep the coordinates the user chose, only borrow the name/address.
-    const named = { name: result.name, address: result.address };
-    cache.set(key, named);
-    return named;
-  } catch (err) {
-    throw mapNetError(err);
-  }
+  const { value } = await viaChain((adapter, p) => adapter.reverse(p, latitude, longitude, signal), signal);
+  if (!value) throw new GeocodeError('invalid', 'No place name found for these coordinates.');
+  // Keep the coordinates the user chose, only borrow the name/address.
+  const named = { name: value.name, address: value.address };
+  cache.set(key, named);
+  return named;
 }

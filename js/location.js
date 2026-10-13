@@ -120,9 +120,10 @@ export class LocationPublisher {
     const now = Date.now();
     if (this.last) {
       const sinceMs = now - this.last.at;
-      if (sinceMs < p.minIntervalMs) return 'skipped-throttle';
+      const riding = (fix.speed ?? 0) >= p.fastSpeedMps;
+      if (sinceMs < (riding ? p.fastIntervalMs : p.minIntervalMs)) return 'skipped-throttle';
       const moved = haversine(this.last, fix);
-      if (moved < p.minMoveMeters && sinceMs < p.stationaryIntervalMs) return 'skipped-throttle';
+      if (moved < (riding ? p.fastMoveMeters : p.minMoveMeters) && sinceMs < p.stationaryIntervalMs) return 'skipped-throttle';
     }
 
     const payload = {

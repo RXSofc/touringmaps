@@ -54,3 +54,11 @@
   .btn { min-height: 40px; }
   .rider-panel, .rider-card { max-height: 80%; }
 }
+
+/* very narrow phones: keep the whole dock on one line, talk button included */
+@media (max-width: 400px) {
+  .dock__row { gap: 6px; }
+  .dock__row .btn { padding-left: 0.5rem; padding-right: 0.5rem; }
+  .dock__row .btn--icon { width: 44px; }
+  .dock__talk { font-size: 0.74rem; letter-spacing: 0; gap: 0.35rem; }
+}

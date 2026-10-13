@@ -25,6 +25,8 @@ rooms/{roomId}
   destination                  name, address?, latitude, longitude, source, updatedAt, updatedBy
   settings                     discordInviteUrl?, destinationPolicy (owner|members), updatedAt
   banned/{uid}                 name, at
+  voice/{uid}                  talking, at          (fallback signalling only)
+  rtc/{to}/{from}/{msg}        t, sid, d, at        (fallback signalling only; deleted once read)
 ```
 
 Email addresses are never copied into the database; other riders see only name, avatar and bike.

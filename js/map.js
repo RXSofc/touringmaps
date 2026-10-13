@@ -2,13 +2,21 @@
  * Leaflet wrapper. Markers are created once and updated in place; the DOM of a
  * marker is only rebuilt when something visible about that rider changed.
  */
-import { APP } from './config.js';
+import { MAP_CONFIG, usableProviders } from './map-config.js';
 import { h, formatAge, defaultAvatar } from './ui.js';
+import { APP } from './config.js';
+import { MotionTrack } from './motion.js';
 
 const L = window.L;
 
+/** What the motion track needs from a rider record. */
+function fixOf(r) {
+  const f = r.fix || {};
+  return { lat: r.lat, lng: r.lng, speed: f.speed, heading: f.heading, measuredAt: Number.isFinite(f.measuredAt) ? f.measuredAt : Date.now() };
+}
+
 function riderSignature(r) {
-  return [r.name, r.avatar, r.state, r.isSelf, r.selected, r.state === 'live' ? '' : formatAge(r.ageMs)].join('|');
+  return [r.name, r.avatar, r.state, r.isSelf, r.selected, r.talking, r.state === 'live' ? '' : formatAge(r.ageMs)].join('|');
 }
 
 function buildRiderEl(r) {
@@ -18,7 +26,7 @@ function buildRiderEl(r) {
   img.src = r.avatar || fallback;
 
   const showAge = r.state !== 'live' && r.state !== 'nolocation' && Number.isFinite(r.ageMs);
-  const cls = ['rider-marker', `is-${r.state}`, r.isSelf ? 'is-self' : '', r.selected ? 'is-selected' : ''].filter(Boolean).join(' ');
+  const cls = ['rider-marker', `is-${r.state}`, r.isSelf ? 'is-self' : '', r.selected ? 'is-selected' : '', r.talking ? 'is-talking' : ''].filter(Boolean).join(' ');
   return h('div', { class: cls },
     h('div', { class: 'rider-marker__avatar-wrap' }, img, h('span', { class: 'rider-marker__status' })),
     h('div', { class: 'rider-marker__pointer' }),
@@ -49,30 +57,29 @@ export class TouringMap {
   constructor(container, handlers = {}) {
     if (!L) throw new Error('Leaflet is not loaded.');
     this.handlers = handlers;
-    this.riders = new Map();       // uid -> {marker, sig, data}
+    this.riders = new Map();       // uid -> {marker, sig, data, track}
+    this.raf = null;
+    this.followUid = null;
+    this.onVisible = () => { if (!document.hidden) this.kick(); };
+    document.addEventListener('visibilitychange', this.onVisible);
     this.tileErrors = 0;
 
     this.map = L.map(container, {
       zoomControl: false,
       attributionControl: true,
-      center: APP.map.defaultCenter,
-      zoom: APP.map.defaultZoom,
+      center: MAP_CONFIG.view.defaultCenter,
+      zoom: MAP_CONFIG.view.defaultZoom,
       worldCopyJump: true,
       tap: true
     });
     L.control.zoom({ position: 'topright' }).addTo(this.map);
     this.map.attributionControl.setPrefix(false);
 
-    const tiles = L.tileLayer(APP.map.tileUrl, {
-      maxZoom: APP.map.tileMaxZoom,
-      attribution: APP.map.tileAttribution,
-      crossOrigin: true
-    }).addTo(this.map);
-    tiles.on('tileerror', () => {
-      this.tileErrors += 1;
-      if (this.tileErrors === 3) handlers.onTileError?.();
-    });
-    tiles.on('load', () => { this.tileErrors = 0; });
+    // Tiles: first usable provider from map-config; if its tiles keep failing, move to the next one.
+    this.tileProviders = usableProviders('tiles');
+    this.tileIndex = -1;
+    this.tileLayer = null;
+    if (!this.nextTileProvider()) handlers.onTileError?.();
 
     this.accuracyCircle = null;
     this.destMarker = null;
@@ -84,6 +91,29 @@ export class TouringMap {
 
     this.map.on('dragstart', () => handlers.onUserPan?.());
     this.map.on('click', (e) => handlers.onMapClick?.({ lat: e.latlng.lat, lng: e.latlng.lng }));
+  }
+
+  /** Switches to the next usable tile provider. @returns {boolean} false when none is left. */
+  nextTileProvider() {
+    const p = this.tileProviders[this.tileIndex + 1];
+    if (!p) return false;
+    this.tileIndex += 1;
+    this.tileErrors = 0;
+    this.tileLayer?.remove();
+    this.activeTiles = p;
+    this.tileLayer = L.tileLayer(p.url, {
+      maxZoom: p.maxZoom,
+      subdomains: p.subdomains || 'abc',
+      attribution: p.attribution,       // always visible: the attribution control is never removed
+      apiKey: p.apiKey,                 // fills {apiKey} for keyed providers
+      crossOrigin: true
+    }).addTo(this.map);
+    this.tileLayer.on('tileerror', () => {
+      this.tileErrors += 1;
+      if (this.tileErrors === MAP_CONFIG.tiles.errorsBeforeFallback && !this.nextTileProvider()) this.handlers.onTileError?.();
+    });
+    this.tileLayer.on('load', () => { this.tileErrors = 0; });
+    return true;
   }
 
   /** @param {Array<{uid,name,avatar,state,lat,lng,ageMs,isSelf,selected}>} riders */
@@ -104,12 +134,12 @@ export class TouringMap {
           zIndexOffset
         }).addTo(this.map);
         marker.on('click', () => this.handlers.onRiderClick?.(r.uid));
-        entry = { marker, sig, data: r };
+        entry = { marker, sig, data: r, track: new MotionTrack(APP.gps.smoothing) };
+        entry.track.setFix(fixOf(r));
         this.riders.set(r.uid, entry);
         continue;
       }
-      const ll = entry.marker.getLatLng();
-      if (ll.lat !== r.lat || ll.lng !== r.lng) entry.marker.setLatLng([r.lat, r.lng]);
+      entry.track.setFix(fixOf(r));   // the marker glides there in the animation loop
       if (entry.sig !== sig) {
         entry.marker.setIcon(L.divIcon({ className: 'rider-icon', html: buildRiderEl(r), iconSize: [72, 84], iconAnchor: [36, 54] }));
         entry.sig = sig;
@@ -120,6 +150,38 @@ export class TouringMap {
     for (const [uid, entry] of this.riders) {
       if (!seen.has(uid)) { entry.marker.remove(); this.riders.delete(uid); }
     }
+    this.kick();
+  }
+
+  /** Keep the map centred on one rider (smoothly, every frame), or stop with null. */
+  setFollow(uid) {
+    this.followUid = uid || null;
+    this.kick();
+  }
+
+  kick() {
+    if (this.raf || document.hidden) return;
+    this.raf = requestAnimationFrame(() => this.frame());
+  }
+
+  frame() {
+    this.raf = null;
+    const now = Date.now();
+    let busy = false;
+    for (const [uid, e] of this.riders) {
+      const s = e.track.sample(now);
+      const cur = e.marker.getLatLng();
+      if (Math.abs(cur.lat - s.lat) > 1e-9 || Math.abs(cur.lng - s.lng) > 1e-9) e.marker.setLatLng([s.lat, s.lng]);
+      if (!s.settled) busy = true;
+      if (e.data.isSelf && this.accuracyCircle) this.accuracyCircle.setLatLng([s.lat, s.lng]);
+      if (uid === this.followUid) {
+        const p = this.map.latLngToContainerPoint([s.lat, s.lng]);
+        const size = this.map.getSize();
+        const dx = p.x - size.x / 2; const dy = p.y - size.y / 2;
+        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) this.map.panBy([dx, dy], { animate: false });
+      }
+    }
+    if (busy || this.followUid) this.kick();
   }
 
   setAccuracy(fix) {
@@ -131,7 +193,8 @@ export class TouringMap {
         fillColor: '#79B8FF', fillOpacity: 0.18, interactive: false
       }).addTo(this.map);
     } else {
-      this.accuracyCircle.setLatLng(ll).setRadius(fix.accuracy);
+      if (![...this.riders.values()].some((e) => e.data.isSelf)) this.accuracyCircle.setLatLng(ll); // otherwise the animation loop moves it
+      this.accuracyCircle.setRadius(fix.accuracy);
     }
   }
 
@@ -202,7 +265,7 @@ export class TouringMap {
     const pts = [...this.riders.values()].map((e) => e.marker.getLatLng());
     if (includeDestination && this.destMarker) pts.push(this.destMarker.getLatLng());
     if (!pts.length) return false;
-    if (pts.length === 1) { this.map.setView(pts[0], Math.min(APP.map.followZoom, maxZoom), { animate: true }); return true; }
+    if (pts.length === 1) { this.map.setView(pts[0], Math.min(MAP_CONFIG.view.followZoom, maxZoom), { animate: true }); return true; }
     this.map.fitBounds(L.latLngBounds(pts), { padding, maxZoom, animate: true });
     return true;
   }
@@ -231,6 +294,9 @@ export class TouringMap {
   invalidate() { this.map.invalidateSize({ animate: false }); }
 
   destroy() {
+    if (this.raf) cancelAnimationFrame(this.raf);
+    this.raf = null;
+    document.removeEventListener('visibilitychange', this.onVisible);
     this.map.off();
     this.map.remove();
     this.riders.clear();

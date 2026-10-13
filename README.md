@@ -1,6 +1,6 @@
 # TouringTogether
 
-Private, real-time coordination for motorcycle touring groups of 2–6 riders: live positions on a shared map, one shared destination, a route from each rider's own position, and a Discord voice button.
+Private, real-time coordination for motorcycle touring groups of 2–6 riders: live positions on a shared map, one shared destination, a route from each rider's own position, in-app push-to-talk voice, and a Discord backup button.
 
 Static site (HTML + CSS + vanilla JS modules) → deploys to **GitHub Pages**, runs inside an **Android WebView** wrapper such as AppMint. No framework, no build step, no server.
 
@@ -16,6 +16,7 @@ Static site (HTML + CSS + vanilla JS modules) → deploys to **GitHub Pages**, r
 | Presence | `.info/connected` + `onDisconnect()`, server-clock-corrected freshness: riders are shown **live / old fix / lost / offline / not sharing**; old coordinates are never presented as current |
 | Destination | Search by name (Nominatim or Photon), enter coordinates (combined or separate fields), or tap the map; preview marker, editable label, explicit confirm; owner-only by default, optional "all riders" policy; visual notice when it changes |
 | Routing | OSRM route from *your* position, recalculated only on destination change, large movement, leaving the route or manual refresh; error + retry + "Open in Maps" fallback |
+| Voice | Hold the mic button to talk to everyone online (WebRTC, rider-to-rider, mono Opus ~24 kbps, mic open only while held). Signalling via Supabase Realtime Broadcast or Firebase |
 | Discord | Validated `https` Discord invite/channel link (owner-editable) opened outside the app |
 | Security | `firebase/database.rules.json` (membership-gated reads, invite-hash joins, slot-based capacity, owner-only settings) |
 
@@ -40,14 +41,32 @@ Local test: `python3 -m http.server 8080` in this folder, then open <http://loca
 - Enable **external links** (`target="_blank"` / system browser) so the Discord and "Open in Maps" buttons can hand off to Android.
 - Web pages are suspended when the screen locks. Turn on **Room menu → Keep screen on** (Wake Lock) while riding. If you later need *reliable background GPS*, that requires a native Android foreground location service, which a WebView cannot provide.
 
-## Configuration worth reviewing (`js/config.js`)
+## Voice (push-to-talk)
 
-- `gps` – `enableHighAccuracy`, `maximumAge`, `timeout` (starting points; test on real devices for battery and accuracy).
-- `publish` – movement threshold (15 m), min interval (3 s), stationary heartbeat (30 s), max accepted accuracy (200 m).
+How it stays cheap: the microphone opens only when you press the button (and stays warm 12 s so repeat presses are instant), nothing connects until someone talks, audio is sent only while the button is held, and connections close after a minute of silence. Nothing is recorded or stored. Hold mode or tap-to-toggle mode is in Room menu → This device.
+
+**Signalling** (the tiny handshake that lets two phones find each other; audio never goes through it):
+
+- **Supabase (recommended, keeps this off Firebase).** In `js/config.js` → `APP.supabase.url`, paste your Project URL (Supabase → Project Settings → API / Data API → `https://xxxx.supabase.co`). The publishable key is already set (it is meant to be public). It uses Realtime *Broadcast* only: no tables, no SQL, nothing stored. Free tier limits are far above 6 riders.
+- **Firebase (automatic fallback)** when `url` is empty: uses `rooms/{id}/rtc` and `rooms/{id}/voice`, covered by the rules in `firebase/database.rules.json` (publish the updated rules).
+
+Supabase broadcast channels are not authenticated per user here (rooms use Firebase Auth). The channel name contains the unguessable room id, and the app ignores any signal from someone who is not a room member, but treat it as "unlisted", not "private". A leaked channel name could let a stranger *disturb* signalling, not hear audio (audio only flows to members the talker's app connects to).
+
+**TURN (important for mobile data).** STUN-only works on most Wi-Fi/home networks but often fails between two phones on carrier NAT. Add a TURN relay to `APP.voice.iceServers` (Metered, Cloudflare, Twilio, or your own coturn). If a rider cannot be reached the app tells you and suggests Discord.
+
+**AppMint/WebView:** allow *microphone / audio recording* for the wrapper app and enable media playback without a user gesture if offered. Like GPS, voice pauses when the screen locks or the app is backgrounded.
+
+## Map providers (`js/map-config.js`)
+
+Tiles, geocoding and routing are plain tables in `js/map-config.js`, each with an ordered fallback `chain`. Defaults are free, key-less OpenStreetMap services (OSM tiles, Nominatim → Photon, OSRM demo), which are **for light, development-scale use with no SLA**. Keyed providers (MapTiler, Stadia, LocationIQ, your own OSRM) ship as `YOUR_…` placeholders that are skipped until you fill them in and add them to a chain, so no paid service is used silently. Manual latitude/longitude always works, even when search is down.
+
+**Read [`docs/MAP-PROVIDERS.md`](docs/MAP-PROVIDERS.md)** for exact limits, throttling, fallback behaviour, key-restriction steps and the production checklist. Firebase settings stay in `js/config.js`.
+
+## Other settings (`js/config.js`)
+
+- `gps` – high-accuracy fresh fixes, Kalman filter and marker-smoothing settings; `publish` – faster sharing while riding (1.5 s / 5 m), 3 s / 10 m otherwise, 30 s standing still, max accepted accuracy 100 m. See [`docs/GPS.md`](docs/GPS.md) for what it does, simulated results and its limits.
 - `freshness` – a fix older than 75 s is "old", older than 10 min is "lost".
-- `geocoder` – Nominatim by default (policy: no search-as-you-type, ~1 req/s, so search runs on submit). Switch to `photon` and set `autoSearch: true` for typeahead, or self-host.
-- `routing.baseUrl` – public OSRM demo (car profile, light use, no SLA). Self-host OSRM/Valhalla or buy a routing API for real use.
-- `map.tileUrl` – OSM's public tiles are for light use; use a tile provider for heavier traffic.
+- `voice`, `supabase` – see Voice above.
 
 ## Honest limitations
 
@@ -70,10 +89,12 @@ index.html            entry (Leaflet loader + module app)
 manifest.webmanifest  sw.js  .nojekyll  firebase.json
 css/                  tokens, base, components, layout, responsive
 js/                   app, main, router, config, firebase, auth, profile, rooms,
-                      presence, location, permissions, map, destinations, routing,
-                      discord, geo, net, ui
+                      presence, location, permissions, map, map-config, gps-filter, motion, destinations, routing,
+                      voice, signaling, discord, geo, net, ui
 js/views/             setup, auth, dashboard, profile, touring, destinationPanel, roomSheet
+docs/                 MAP-PROVIDERS.md (limits, setup, production checklist)
 firebase/             database.rules.json, README.md, tests/ (rules tests)
+tests/                gps-sim.mjs (simulated ride for the GPS filter and marker motion)
 scripts/              vendor-leaflet.sh
 assets/icons/         icon.svg + PNGs
 ```
@@ -82,6 +103,7 @@ Differences from the suggested structure: screens are JS views behind a hash rou
 
 ## Manual test checklist
 
+0. Voice: two phones, hold the mic on A, B hears it and sees "A is talking"; release, then repeat from B. Test once on mobile data for each rider (TURN).
 1. Register two accounts (two browsers/devices). Create a room on A, join with the code on B.
 2. Both grant location → each sees the other's avatar marker; one rider alone shows "Waiting for riders".
 3. Owner searches "Kawah Putih, Ciwidey" → pick result → confirm; B sees the marker + notice; both get routes. Repeat with `-7.7956, 110.3695`.

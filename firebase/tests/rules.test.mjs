@@ -148,3 +148,35 @@ test('a new room can only contain its creator (no pre-filled members or slots)',
   await assertFails(db('a').ref('rooms/room_creator_bad1').set(base({ members: { b: { role: 'member', slot: '1', joinedAt: now, displayName: 'B' } } })));
   await assertFails(db('a').ref('rooms/room_creator_bad2').set(base({ slots: { 1: 'b' } })));
 });
+
+/* ---- voice signalling fallback (only used when Supabase is not configured) ---- */
+const sig = (extra = {}) => ({ t: 'offer', sid: 'abcdefgh1234', d: '{"type":"offer","sdp":"v=0"}', at: now, ...extra });
+
+test('voice: members signal each other; outsiders and spoofers cannot', async () => {
+  await assertSucceeds(db('a').ref().update(joinUpdate('a', 1)));
+  const p = (to, from) => `rooms/${roomId}/rtc/${to}/${from}/-Nmsg1`;
+  await assertSucceeds(db('a').ref(p('owner', 'a')).set(sig()));
+  await assertFails(db('a').ref(p('owner', 'owner')).set(sig()));            // cannot write as someone else
+  await assertFails(db('mallory').ref(p('owner', 'mallory')).set(sig()));    // not a member
+  await assertFails(db('a').ref(p('mallory', 'a')).set(sig()));              // target is not a member
+  await assertFails(db('a').ref(p('owner', 'a') + 'x').set(sig({ t: 'evil' })));
+  await assertFails(db('a').ref(p('owner', 'a') + 'y').set(sig({ d: 'x'.repeat(8001) })));
+  await assertFails(db('a').ref(p('owner', 'a') + 'z').set(sig({ extra: 1 })));
+});
+
+test('voice: the recipient (or sender) may delete a message; others may not', async () => {
+  await assertSucceeds(db('a').ref().update(joinUpdate('a', 1)));
+  const path = `rooms/${roomId}/rtc/owner/a/-Nmsg2`;
+  await assertSucceeds(db('a').ref(path).set(sig()));
+  await assertFails(db('mallory').ref(path).remove());
+  await assertSucceeds(db('owner').ref(path).remove());
+});
+
+test('voice: talking flag is writable only by that member for themselves', async () => {
+  await assertSucceeds(db('a').ref().update(joinUpdate('a', 1)));
+  await assertSucceeds(db('a').ref(`rooms/${roomId}/voice/a`).set({ talking: true, at: now }));
+  await assertFails(db('a').ref(`rooms/${roomId}/voice/owner`).set({ talking: true, at: now }));
+  await assertFails(db('mallory').ref(`rooms/${roomId}/voice/mallory`).set({ talking: true, at: now }));
+  await assertFails(db('a').ref(`rooms/${roomId}/voice/a`).set({ talking: false, at: now }));
+  await assertSucceeds(db('owner').ref(`rooms/${roomId}/voice/a`).get());
+});

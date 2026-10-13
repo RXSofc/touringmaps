@@ -3,7 +3,7 @@
  * Nothing is saved until the user presses the confirm button.
  */
 import { h, icon, clear, mountInto, withBusy, debounce, copyText, toast, formatLatLng, formatDistance } from '../ui.js';
-import { APP } from '../config.js';
+import { MAP_CONFIG } from '../map-config.js';
 import { searchPlaces, reverseGeocode, parseCoordinates, validateLatLng } from '../destinations.js';
 import { externalNavLinks } from '../routing.js';
 import { openExternal } from '../discord.js';
@@ -97,7 +97,7 @@ export function openDestinationPanel(opts) {
 
     async function run() {
       const q = input.value.trim();
-      if (q.length < APP.geocoder.minChars) { status.className = 'field__error'; status.textContent = `Type at least ${APP.geocoder.minChars} characters.`; return; }
+      if (q.length < MAP_CONFIG.geocoder.minChars) { status.className = 'field__error'; status.textContent = `Type at least ${MAP_CONFIG.geocoder.minChars} characters.`; return; }
       if (q.toLowerCase() === lastQuery && results.children.length) return; // identical repeat: keep what is shown
       lastQuery = q.toLowerCase();
       searchController?.abort();
@@ -114,7 +114,7 @@ export function openDestinationPanel(opts) {
           status.textContent = 'No places found. Try a nearby town, a street name, or enter coordinates instead.';
           return;
         }
-        status.textContent = found.length > 1 ? `${found.length} results. Pick the right one.` : '1 result. Check it is the right place.';
+        status.textContent = (found.length > 1 ? `${found.length} results. Pick the right one.` : '1 result. Check it is the right place.') + (found.isFallback ? ` (via ${found.providerLabel}, the main search service was unavailable)` : '');
         for (const r of found) {
           const dist = opts.myPosition ? haversine(opts.myPosition, r) : null;
           results.append(h('li', {},
@@ -130,14 +130,14 @@ export function openDestinationPanel(opts) {
         status.className = 'field__error';
         status.textContent = err.message || 'Search failed.';
         const retry = h('button', { class: 'btn btn--sm', type: 'button', onclick: () => { lastQuery = ''; run(); } }, icon('refresh'), 'Retry');
-        results.append(h('li', {}, retry));
+        results.append(h('li', { class: 'btn-row' }, retry, h('button', { class: 'btn btn--sm btn--accent', type: 'button', onclick: () => showMode('coords') }, icon('pin'), 'Enter coordinates')));
       } finally {
         searchBtn.disabled = false;
       }
     }
 
-    if (APP.geocoder.autoSearch) {
-      const debounced = debounce(() => { if (input.value.trim().length >= APP.geocoder.minChars) run(); }, APP.geocoder.debounceMs);
+    if (MAP_CONFIG.geocoder.autoSearch) {
+      const debounced = debounce(() => { if (input.value.trim().length >= MAP_CONFIG.geocoder.minChars) run(); }, MAP_CONFIG.geocoder.debounceMs);
       input.addEventListener('input', debounced);
     }
 

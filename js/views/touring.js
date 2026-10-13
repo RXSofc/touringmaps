@@ -6,21 +6,25 @@ import {
   formatDistance, formatDuration, formatAge, formatLatLng, formatSpeedKmh, formatClock
 } from '../ui.js';
 import { APP } from '../config.js';
+import { MAP_CONFIG, usableProviders } from '../map-config.js';
 import { getUser, onBeforeLogout } from '../auth.js';
 import { ensureProfile } from '../profile.js';
 import {
   subscribeRoom, saveDestination, clearDestination, updateRoomSettings, setRoomStatus, deleteRoom,
   rotateInvite, removeMember, allowRejoin, leaveRoom, setCurrentRoom, forgetRoomEntry
 } from '../rooms.js';
-import { startRoomPresence, riderStatus, serverNow, onConnectionChange, isConnected } from '../presence.js';
+import { startRoomPresence, riderStatus, serverNow, serverOffset, onConnectionChange, isConnected } from '../presence.js';
 import { LocationTracker, LocationPublisher } from '../location.js';
+import { PositionFilter } from '../gps-filter.js';
 import { queryGeoPermission, watchGeoPermission, describePermission, PERMISSION_HELP, WakeLock } from '../permissions.js';
 import { TouringMap } from '../map.js';
 import { RouteManager, fetchRoute, externalNavLinks } from '../routing.js';
 import { openDiscord, openExternal } from '../discord.js';
+import { VoiceChat, VOICE_SUPPORTED } from '../voice.js';
 import { haversine } from '../geo.js';
 import { openDestinationPanel } from './destinationPanel.js';
 import { openRoomSheet } from './roomSheet.js';
+import { openGpsSheet } from './gpsSheet.js';
 import { navigate } from '../router.js';
 
 const storage = {
@@ -59,6 +63,8 @@ export function touringView(roomId) {
     routeVisible: true,
     legendOpen: false,
     ridersOpen: false,
+    voiceMode: storage.get('tt.voiceMode') === 'toggle' ? 'toggle' : 'hold',   // hold the button, or tap to start/stop
+    voiceMicHinted: false,
     backgroundGapMs: null,
     destNotice: null,           // {text}
     dismissed: new Set(),
@@ -71,11 +77,16 @@ export function touringView(roomId) {
   let map = null;
   let tracker = null;
   let publisher = null;
+  const gpsFilter = new PositionFilter(APP.gps.filter);
+  const gpsStats = { received: 0, rejected: 0, published: 0, skippedAccuracy: 0, deviceDoppler: null, log: [] };
+  let gpsSheet = null;
   let stopPresence = null;
   let routeManager = null;
   let destPanel = null;
   let roomSheet = null;
   let wakeLock = null;
+  let voice = null;
+  const problemToastAt = new Map();
   let hiddenAt = null;
   let otherRouteController = null;
   let rafPending = false;
@@ -92,7 +103,7 @@ export function touringView(roomId) {
     els.name = h('div', { class: 'topbar__name' }, 'Room');
     els.sub = h('div', { class: 'topbar__sub mono' }, '');
     els.connChip = h('span', { class: 'chip chip--muted' }, 'Connecting');
-    els.gpsChip = h('span', { class: 'chip chip--muted' }, 'GPS');
+    els.gpsChip = h('button', { class: 'chip chip--muted chip--button', type: 'button', 'aria-label': 'GPS details', onclick: openGps }, 'GPS');
     els.alerts = h('div', { class: 'alerts', 'aria-live': 'polite' });
     els.mapEl = h('div', { class: 'map', id: 'map', role: 'application', 'aria-label': 'Live map of your riding group' });
 
@@ -121,11 +132,15 @@ export function touringView(roomId) {
     els.btnInfo = h('button', { class: 'btn btn--icon btn--sm', type: 'button', 'aria-label': 'About routes and location sharing', title: 'About routes', onclick: openAbout }, icon('info'));
     els.routeStrip = h('div', { class: 'dock__route' }, els.destBtn, els.btnRefreshRoute, els.btnNav, els.btnInfo);
 
-    els.btnDiscord = h('button', { class: 'btn btn--primary dock__discord', type: 'button', onclick: onDiscord }, icon('mic'), h('span', {}, 'Discord voice'));
+    els.btnTalk = h('button', { class: 'btn btn--primary dock__talk', type: 'button', 'aria-pressed': 'false' },
+      h('span', { class: 'talk__icon' }, icon('mic')),
+      h('span', { class: 'talk__label' }, 'Hold to talk'));
+    bindTalkButton(els.btnTalk);
+    els.btnDiscord = h('button', { class: 'btn btn--icon dock__discord', type: 'button', 'aria-label': 'Open Discord voice (backup)', title: 'Discord voice (backup)', onclick: onDiscord }, icon('headset'));
     els.btnRiders = h('button', { class: 'btn dock__riders', type: 'button', 'aria-expanded': 'false', 'aria-label': 'Riders list', onclick: () => { state.ridersOpen = !state.ridersOpen; render(); } }, icon('users'), h('span', { class: 'dock__count' }, '0'));
     els.btnShare = h('button', { class: 'btn dock__share', type: 'button', 'aria-pressed': 'true', onclick: onToggleSharing }, icon('pause'), h('span', { class: 'hide-sm' }, 'Sharing'));
     els.btnRoom = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Room menu and invite code', onclick: openRoom }, icon('menu'));
-    els.dock = h('footer', { class: 'dock' }, els.routeStrip, h('div', { class: 'dock__row' }, els.btnDiscord, els.btnRiders, els.btnShare, els.btnRoom));
+    els.dock = h('footer', { class: 'dock' }, els.routeStrip, h('div', { class: 'dock__row' }, els.btnTalk, els.btnDiscord, els.btnRiders, els.btnShare, els.btnRoom));
 
     return h('div', { class: 'touring' },
       h('header', { class: 'topbar' },
@@ -140,9 +155,10 @@ export function touringView(roomId) {
   function computeRiders() {
     const now = serverNow();
     const riders = [];
+    const talkerIds = new Set(voice ? voice.talkers() : []);
     for (const [id, m] of Object.entries(state.members)) {
       const isSelf = id === uid;
-      let lat = null; let lng = null; let st = 'nolocation'; let ageMs = null; let loc = null;
+      let lat = null; let lng = null; let st = 'nolocation'; let ageMs = null; let loc = null; let motion = null;
       if (isSelf) {
         const fix = state.myFix;
         if (fix) {
@@ -150,18 +166,24 @@ export function touringView(roomId) {
           ageMs = Math.max(0, Date.now() - fix.timestamp);
           st = !isConnected() && state.sharing ? 'offline' : ageMs <= APP.freshness.liveMaxAgeMs ? 'live' : ageMs <= APP.freshness.staleMaxAgeMs ? 'stale' : 'lost';
           loc = { accuracy: fix.accuracy, speed: fix.speed, heading: fix.heading };
+          motion = { speed: fix.speed, heading: fix.heading, measuredAt: fix.timestamp };
         }
       } else {
         loc = state.locations[id] || null;
         const status = riderStatus({ presence: state.presence[id], location: loc, now });
         st = status.state; ageMs = status.ageMs;
-        if (loc) { lat = loc.latitude; lng = loc.longitude; }
+        if (loc) {
+          lat = loc.latitude; lng = loc.longitude;
+          // fixAt is server time; convert to this device's clock for smooth movement
+          motion = { speed: loc.speed, heading: loc.heading, measuredAt: Number.isFinite(loc.fixAt) ? loc.fixAt - serverOffset() : undefined };
+        }
       }
       const dist = state.destination && lat !== null
         ? haversine({ latitude: lat, longitude: lng }, state.destination) : null;
       riders.push({
         uid: id, name: m.displayName || 'Rider', avatar: avatarFor(m, id), member: m, isSelf,
-        state: st, ageMs, lat, lng, loc, distToDest: dist, selected: state.selectedUid === id,
+        state: st, ageMs, lat, lng, loc, fix: motion, distToDest: dist, selected: state.selectedUid === id,
+        talking: isSelf ? !!voice?.transmitting : talkerIds.has(id),
         connected: isSelf ? isConnected() : state.presence[id]?.connected === true,
         lastSeen: state.presence[id]?.lastSeen ?? null
       });
@@ -198,7 +220,7 @@ export function touringView(roomId) {
     els.connChip.className = `chip ${up ? 'chip--success' : 'chip--warning'}`;
     mountInto(els.connChip, h('span', { class: `dot ${up ? 'dot--live' : 'dot--stale'}` }), up ? 'Online' : 'Offline');
     const gps = gpsChip();
-    els.gpsChip.className = `chip chip--${gps.tone}`;
+    els.gpsChip.className = `chip chip--button chip--${gps.tone}`;
     els.gpsChip.textContent = gps.text;
 
     // map
@@ -212,6 +234,7 @@ export function touringView(roomId) {
 
     // controls
     els.btnLocate.setAttribute('aria-pressed', String(state.following));
+    map.setFollow(state.following && state.myFix ? uid : null);
     els.btnRoute.setAttribute('aria-pressed', String(state.routeVisible));
     els.btnLegend.setAttribute('aria-expanded', String(state.legendOpen));
     els.legend.hidden = !state.legendOpen;
@@ -245,7 +268,7 @@ export function touringView(roomId) {
       dismissible ? h('button', { class: 'btn btn--icon btn--sm btn--ghost', type: 'button', 'aria-label': 'Dismiss', onclick: () => { state.dismissed.add(key); render(); } }, icon('close')) : null);
   }
 
-  function renderAlerts() {
+  function renderAlerts(riders) {
     const items = [];
     if (!isConnected()) items.push(banner('offline', 'warning', 'wifi', [h('strong', {}, 'No connection. '), 'Positions on screen may be out of date. Riders will not see you until you reconnect.'], { dismissible: false }));
     if (state.meta.status === 'closed') items.push(banner('closed', 'warning', 'alert', [h('strong', {}, 'Room closed. '), 'Live sharing is paused.'], { dismissible: false }));
@@ -259,7 +282,16 @@ export function touringView(roomId) {
     if (state.tileProblem) items.push(banner('tiles', 'warning', 'wifi', 'Map tiles are not loading. Positions are still accurate.'));
     if (state.destNotice) items.push(banner('destnotice', 'success', 'flag', state.destNotice.text, { dismissible: true }));
     const nodes = items.filter(Boolean);
-    mountInto(els.alerts, nodes);
+    const talkers = riders.filter((r) => r.talking && !r.isSelf);
+    if (talkers.length) {
+      const names = talkers.map((r) => r.name);
+      nodes.unshift(h('div', { class: 'banner banner--voice', role: 'status' }, icon('mic'),
+        h('div', { class: 'banner__body' }, h('strong', {}, names.length > 2 ? `${names[0]} +${names.length - 1}` : names.join(' & ')), ` ${names.length > 1 ? 'are' : 'is'} talking`)));
+    }
+    if (voice?.audioBlocked) {
+      nodes.push(banner('audio', 'warning', 'alert', 'Voice audio is blocked by this device. Tap anywhere to turn it on.', { dismissible: false }));
+    }
+    mountInto(els.alerts, nodes.filter(Boolean));
   }
 
   function renderRiderPanel(riders) {
@@ -279,7 +311,7 @@ export function touringView(roomId) {
           h('button', { class: `row row--button${r.selected ? ' is-selected' : ''}`, type: 'button', onclick: () => selectRider(r.uid, true) },
             avatarImg(r.member, r.uid, 'avatar'),
             h('span', { class: 'row__main' },
-              h('span', { class: 'row__title' }, r.name, r.isSelf ? ' (you)' : '', r.member.role === 'owner' ? ' ★' : ''),
+              h('span', { class: 'row__title' }, r.name, r.isSelf ? ' (you)' : '', r.member.role === 'owner' ? ' ★' : '', r.talking ? h('span', { class: 'talk-ico', title: 'Talking' }, icon('mic')) : null),
               h('span', { class: 'row__sub' }, sub || (r.isSelf && !state.sharing ? 'Sharing paused (only you see this)' : ' '))),
             h('span', { class: `chip chip--${lab.tone}` }, h('span', { class: `dot dot--${r.state}` }), lab.text)));
       })));
@@ -338,7 +370,7 @@ export function touringView(roomId) {
       else if (rs.status === 'loading' && !rs.route) summary = 'Calculating route…';
       else if (rs.status === 'error' && !rs.route) summary = rs.error?.message || 'Route unavailable';
       else if (rs.route) {
-        summary = `${formatDistance(rs.route.distanceMeters)} · ~${formatDuration(rs.route.durationSeconds)}*${rs.status === 'loading' ? ' · updating…' : rs.status === 'error' ? ' · refresh failed' : ''}`;
+        summary = `${formatDistance(rs.route.distanceMeters)} · ~${formatDuration(rs.route.durationSeconds)}*${rs.route.isFallback ? ` · via ${rs.route.providerLabel}` : ''}${rs.status === 'loading' ? ' · updating…' : rs.status === 'error' ? ' · refresh failed' : ''}`;
       }
     }
     mountInto(els.destBtn,
@@ -357,13 +389,119 @@ export function touringView(roomId) {
     els.btnShare.setAttribute('aria-label', state.sharing ? 'Pause location sharing' : 'Resume location sharing');
     els.btnShare.title = state.sharing ? 'Pause location sharing' : 'Resume location sharing';
     els.btnDiscord.classList.toggle('is-muted', !state.settings.discordInviteUrl);
+    renderTalkButton();
+  }
+
+  /* ------------------------------------------------------------- voice */
+  function voiceBlock() {
+    if (!VOICE_SUPPORTED || !APP.voice.enabled) return 'unsupported';
+    if (!isConnected()) return 'offline';
+    if (!voicePeers().length) return 'alone';
+    return null;
+  }
+
+  const voicePeers = () => Object.keys(state.members)
+    .filter((id) => id !== uid && state.presence[id]?.connected === true)
+    .map((id) => ({ uid: id, epoch: state.presence[id]?.lastSeen ?? 0 }));
+
+  const BLOCK_TEXT = {
+    unsupported: 'Voice is not supported in this browser. Use the Discord button.',
+    offline: 'You are offline. Voice needs a connection.',
+    alone: 'No other rider is online right now.'
+  };
+
+  function renderTalkButton() {
+    const b = els.btnTalk;
+    const block = voiceBlock();
+    const phase = voice ? voice.phase() : 'idle';
+    const toggle = state.voiceMode === 'toggle';
+    const live = phase === 'live';
+    const pending = phase === 'starting' || phase === 'connecting';
+    b.classList.toggle('is-live', live);
+    b.classList.toggle('is-pending', pending);
+    b.classList.toggle('is-blocked', !!block && !pending && !live);
+    b.setAttribute('aria-pressed', String(live || pending));
+    b.setAttribute('aria-disabled', String(!!block && !pending && !live));
+    let label;
+    if (live) label = toggle ? 'Tap to stop' : 'Talking';
+    else if (phase === 'starting') label = 'Mic…';
+    else if (phase === 'connecting') label = 'Linking…';
+    else if (block === 'unsupported') label = 'No voice';
+    else if (block === 'offline') label = 'Offline';
+    else if (block === 'alone') label = 'Nobody online';
+    else label = toggle ? 'Tap to talk' : 'Hold to talk';
+    b.querySelector('.talk__label').textContent = label;
+    b.setAttribute('aria-label', live ? 'Talking. Release to stop' : `Push to talk. ${label}`);
+  }
+
+  function bindTalkButton(btn) {
+    let held = false;
+    const begin = () => {
+      if (state.voiceMode === 'toggle') {
+        if (voice && (voice.holding || voice.transmitting)) { endTalk(); return; }
+      }
+      held = true;
+      startTalk();
+    };
+    const finish = () => {
+      if (state.voiceMode === 'toggle' || !held) return;
+      held = false;
+      endTalk();
+    };
+    btn.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
+      try { btn.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
+      begin();
+    });
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) btn.addEventListener(ev, finish);
+    btn.addEventListener('keydown', (e) => {
+      if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); begin(); }
+    });
+    btn.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); finish(); } });
+    btn.addEventListener('blur', finish);
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  async function startTalk() {
+    const block = voiceBlock();
+    if (block || !voice) { toast(BLOCK_TEXT[block || 'unsupported'], { type: 'info' }); return; }
+    const res = await voice.press();
+    if (!res.ok) {
+      const msg = {
+        denied: 'Microphone is blocked. Allow microphone access for this app in your phone or WebView settings, then try again.',
+        nomic: 'No microphone found on this device.',
+        unsupported: BLOCK_TEXT.unsupported,
+        error: 'The microphone could not be started. Try again.'
+      }[res.reason] || 'Voice could not start.';
+      toast(msg, { type: 'error', timeout: 6000 });
+    } else if (res.late) {
+      toast('Microphone ready. Press and hold again to talk.', { type: 'info' });
+    } else {
+      try { navigator.vibrate?.(12); } catch { /* optional */ }
+    }
+    render();
+  }
+
+  function endTalk() {
+    voice?.release();
+    render();
+  }
+
+  function onVoiceProblem(peerUid, kind) {
+    if (!peerUid) { toast('Voice signalling could not start. Check the Supabase settings or use Discord.', { type: 'warning', timeout: 6000 }); return; }
+    const last = problemToastAt.get(peerUid) || 0;
+    if (Date.now() - last < 60000) return;
+    problemToastAt.set(peerUid, Date.now());
+    const name = state.members[peerUid]?.displayName || 'that rider';
+    toast(`Voice could not reach ${name}. Their network may block direct audio; a TURN server fixes this. Use Discord meanwhile.`, { type: 'warning', timeout: 7000 });
   }
 
   /* ---------------------------------------------------------- actions */
   function onLocate() {
     state.following = true;
     if (state.myFix) {
-      map.panTo(state.myFix.latitude, state.myFix.longitude, APP.map.followZoom);
+      map.panTo(state.myFix.latitude, state.myFix.longitude, MAP_CONFIG.view.followZoom);
     } else if (!state.tracking) {
       state.gateDismissed = false;
       startTracking(true);
@@ -462,7 +600,7 @@ export function touringView(roomId) {
     roomSheet = openRoomSheet({
       getState: () => ({
         uid, isOwner: isOwner(), meta: state.meta, members: state.members, banned: state.banned,
-        settings: state.settings, memberCount: memberCount(), keepAwake: state.keepAwake
+        settings: state.settings, memberCount: memberCount(), keepAwake: state.keepAwake, voiceMode: state.voiceMode, voiceSupported: VOICE_SUPPORTED && APP.voice.enabled
       }),
       actions: {
         removeMember: async (targetUid, m) => { try { await removeMember(roomId, targetUid, m); toast(`${m.displayName} was removed.`, { type: 'info' }); } catch (e) { toast(e.message, { type: 'error' }); } },
@@ -476,7 +614,7 @@ export function touringView(roomId) {
         setStatus: async (status) => { try { await setRoomStatus(roomId, state.meta.inviteCodeHash, status); toast(status === 'closed' ? 'Room closed.' : 'Room reopened.', { type: 'success' }); } catch (e) { toast(e.message, { type: 'error' }); } },
         deleteRoom: async () => {
           try {
-            await stopSharing();
+            await Promise.allSettled([voice?.destroy(), stopSharing()]);
             await deleteRoom(roomId, state.meta.inviteCodeHash, uid);
             toast('Room deleted.', { type: 'success' });
             navigate('/dashboard');
@@ -484,12 +622,13 @@ export function touringView(roomId) {
         },
         leave: async () => {
           try {
-            await stopSharing();
+            await Promise.allSettled([voice?.destroy(), stopSharing()]);
             await leaveRoom(roomId, uid, state.members[uid]);
             toast('You left the room.', { type: 'success' });
             navigate('/dashboard');
           } catch (e) { toast(e.message, { type: 'error' }); }
         },
+        setVoiceMode: (mode) => { state.voiceMode = mode === 'toggle' ? 'toggle' : 'hold'; storage.set('tt.voiceMode', state.voiceMode); if (voice?.holding) endTalk(); render(); },
         setKeepAwake: async (on) => {
           state.keepAwake = on;
           storage.set('tt.keepAwake', on ? '1' : '0');
@@ -499,6 +638,11 @@ export function touringView(roomId) {
       },
       onClose: () => { roomSheet = null; }
     });
+  }
+
+  function openGps() {
+    if (gpsSheet) return;
+    gpsSheet = openGpsSheet({ stats: gpsStats, getState: () => state, onClose: () => { gpsSheet = null; } });
   }
 
   function openAbout() {
@@ -512,8 +656,15 @@ export function touringView(roomId) {
         h('h3', {}, 'Location sharing'),
         h('p', {}, 'Your position is shared only with members of this room, only while this screen is open and at least two riders are in the room. Pausing or leaving deletes your shared position.'),
         h('p', {}, 'Browsers and app wrappers pause web pages when the screen locks. If you lock the phone or switch apps, others will see your position marked “old” or “offline” instead of pretending it is live. Turn on “Keep screen on” in the Room menu while riding.'),
+        h('h3', {}, 'Map services'),
+        h('p', {}, 'Map tiles, place search and routes come from free OpenStreetMap-based public services, meant for light use with no guarantee. If one is busy or down the app tries the next, and you can always enter coordinates by hand.'),
+        h('ul', { class: 'about__providers' }, ['tiles', 'geocoder', 'routing'].map((sec) => {
+          const list = usableProviders(sec).map((p) => p.label).join(' → ') || 'none configured';
+          return h('li', {}, h('strong', {}, { tiles: 'Map tiles', geocoder: 'Place search', routing: 'Routes' }[sec]), `: ${list}`);
+        })),
         h('h3', {}, 'Voice'),
-        h('p', {}, 'Voice runs in Discord. The Discord button opens your group’s Discord link; TouringTogether never sees your Discord account.'))
+        h('p', {}, 'Hold the microphone button to talk to everyone online in the room. The microphone is only on while you hold it (plus a few seconds so the next press is instant), and nothing is recorded or stored. Voice goes straight between phones; some mobile networks block that, and then the Discord button is the fallback.'),
+        h('p', {}, 'Like GPS, voice pauses when the screen locks or the app goes to the background.'))
     });
   }
 
@@ -537,14 +688,25 @@ export function touringView(roomId) {
     render();
   }
 
-  function handleFix(fix) {
+  function handleFix(rawFix) {
+    const { fix, rejected } = gpsFilter.process(rawFix);
+    gpsStats.received += 1;
+    if (rejected) gpsStats.rejected += 1;
+    if (Number.isFinite(rawFix.speed) || Number.isFinite(rawFix.heading)) gpsStats.deviceDoppler = true;
+    else if (gpsStats.received > 5 && gpsStats.deviceDoppler === null) gpsStats.deviceDoppler = false;
+    gpsStats.log.push({
+      t: rawFix.timestamp, rawLat: rawFix.latitude.toFixed(6), rawLng: rawFix.longitude.toFixed(6), rawAcc: rawFix.accuracy,
+      lat: fix ? fix.latitude.toFixed(6) : null, lng: fix ? fix.longitude.toFixed(6) : null, acc: fix?.accuracy ?? null,
+      speed: fix?.speed ?? null, heading: fix?.heading ?? null, rejected: rejected || ''
+    });
+    if (gpsStats.log.length > 400) gpsStats.log.shift();
+    if (rejected || !fix) { state.lastFixEventAt = Date.now(); return; }   // a GPS jump or an out-of-order fix: ignore it
     state.myFix = fix;
     state.lastFixEventAt = Date.now();
     state.geoError = null;
     if (state.perm !== 'granted') state.perm = 'granted';
     if (state.backgroundGapMs) state.backgroundGapMs = null;
     routeManager.updateOrigin(fix);
-    if (state.following) map.panTo(fix.latitude, fix.longitude);
     publishLatest();
     render();
   }
@@ -565,6 +727,8 @@ export function touringView(roomId) {
     if (!state.myFix || !publisher) return;
     const canPublish = state.sharing && sessionActive() && isConnected() && state.meta.status === 'open' && !sharingStopped;
     const result = await publisher.handleFix(state.myFix, { canPublish });
+    if (result === 'published') gpsStats.published += 1;
+    else if (result === 'skipped-accuracy') gpsStats.skippedAccuracy += 1;
     if (result === 'published' && state.publishNote) { state.publishNote = null; render(); }
   }
 
@@ -579,7 +743,7 @@ export function touringView(roomId) {
 
   /* ---------------------------------------------------------- lifecycle */
   function onVisibility() {
-    if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+    if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); voice?.suspend(); render(); return; }
     const gap = hiddenAt ? Date.now() - hiddenAt : 0;
     hiddenAt = null;
     if (gap > 20000 && state.tracking) state.backgroundGapMs = gap;
@@ -602,7 +766,8 @@ export function touringView(roomId) {
     const msg = reason === 'deleted' ? 'This room was deleted by its owner.'
       : reason === 'removed' ? 'You were removed from this room.'
         : 'You do not have access to this room. Join with an invite code from the dashboard.';
-    destPanel?.close(); roomSheet?.close();
+    destPanel?.close(); roomSheet?.close(); gpsSheet?.close();
+    voice?.destroy();
     mountInto(els.root, h('div', { class: 'auth-shell' }, h('div', { class: 'card' },
       h('h1', {}, 'Room unavailable'),
       h('div', { class: 'banner banner--danger', role: 'alert' }, icon('alert'), h('div', { class: 'banner__body' }, msg)),
@@ -672,7 +837,7 @@ export function touringView(roomId) {
       window.addEventListener('resize', onResize);
       cleanups.push(() => window.removeEventListener('resize', onResize));
 
-      const offHook = onBeforeLogout(stopSharing);
+      const offHook = onBeforeLogout(async () => { await Promise.allSettled([voice?.destroy(), stopSharing()]); });
       cleanups.push(offHook);
 
       const offPerm = await watchGeoPermission((p) => {
@@ -689,6 +854,11 @@ export function touringView(roomId) {
           state.ready = true;
           setCurrentRoom(uid, roomId);
           stopPresence = startRoomPresence(roomId, uid);
+          if (VOICE_SUPPORTED && APP.voice.enabled && !voice) {
+            voice = new VoiceChat({ roomId, uid, getPeers: voicePeers, isMember: (id) => !!state.members[id], onChange: render, onProblem: onVoiceProblem });
+            voice.start();
+            cleanups.push(() => { voice?.destroy(); });
+          }
           renderNow();
           if (state.perm === 'granted') startTracking();
           if (storage.getSession('tt.justCreated') === roomId) { storage.removeSession('tt.justCreated'); openRoom(); }
@@ -707,7 +877,7 @@ export function touringView(roomId) {
           render();
         },
         onLocations: (locs) => { state.locations = locs; render(); },
-        onPresence: (p) => { state.presence = p; render(); },
+        onPresence: (p) => { state.presence = p; if (voice?.transmitting) voice.syncPeers(); render(); },
         onSettings: (s) => { state.settings = s; render(); },
         onBanned: (b) => { state.banned = b; render(); },
         onDestination: (dest) => {
@@ -739,8 +909,9 @@ export function touringView(roomId) {
       destroyed = true;
       destPanel?.close();
       roomSheet?.close();
+      gpsSheet?.close();
       clearOtherRoute();
-      await stopSharing();
+      await Promise.allSettled([voice?.destroy(), stopSharing()]);
       cleanupAll();
     }
   };

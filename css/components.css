@@ -244,6 +244,8 @@
 .chip--danger { background: var(--color-danger); color: var(--color-on-dark); }
 .chip--info { background: var(--color-accent); }
 .chip--muted { background: var(--color-muted); }
+button.chip--button { color: inherit; cursor: pointer; }
+button.chip--button:active { transform: translate(2px, 2px); }
 
 .dot {
   display: inline-block;
@@ -279,6 +281,7 @@
 .banner--warning { background: var(--color-warning); }
 .banner--danger { background: #FFD9D4; border-color: var(--color-danger); }
 .banner--success { background: var(--color-primary); }
+.banner--voice { background: var(--color-secondary); font-weight: 600; }
 .banner .btn { align-self: center; }
 
 /* ============ Toasts ============ */
@@ -480,6 +483,10 @@
 .rider-marker.is-self .rider-marker__label { background: var(--color-accent); }
 .rider-marker.is-selected .rider-marker__avatar { box-shadow: 0 0 0 4px var(--color-primary), 4px 4px 0 4px var(--color-border); }
 .rider-marker.is-selected .rider-marker__label { background: var(--color-primary); }
+.rider-marker.is-talking .rider-marker__avatar { box-shadow: 0 0 0 4px var(--color-secondary), 3px 3px 0 4px var(--color-border); }
+.rider-marker.is-talking .rider-marker__label { background: var(--color-secondary); }
+.talk-ico { display: inline-grid; vertical-align: -3px; margin-left: 6px; }
+.talk-ico .icon { width: 16px; height: 16px; }
 
 .dest-marker { position: relative; width: 64px; height: 76px; }
 .dest-marker svg { width: 64px; height: 64px; display: block; overflow: visible; }

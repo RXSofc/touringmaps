@@ -57,7 +57,7 @@ export function openRoomSheet({ getState, actions, onClose }) {
     const discordMsg = h('div', { class: 'field__hint', id: 'rs-discord-msg' }, 'Only discord.gg and discord.com links are accepted.');
     const discordSave = h('button', { class: 'btn btn--accent', type: 'submit' }, 'Save link');
     const discord = h('section', { class: 'sheet__section' },
-      h('h3', {}, 'Discord voice'),
+      h('h3', {}, 'Discord voice (backup)'),
       s.isOwner
         ? h('form', { class: 'form', novalidate: true, onsubmit: async (e) => {
           e.preventDefault();
@@ -73,7 +73,7 @@ export function openRoomSheet({ getState, actions, onClose }) {
         } },
         h('div', { class: 'field' }, h('label', { for: 'rs-discord' }, 'Invite or channel link'), discordInput, discordMsg), discordSave)
         : h('p', {}, url ? h('span', { class: 'mono small' }, url) : 'The owner has not added a Discord link yet.'),
-      h('p', { class: 'muted small' }, 'The button opens Discord (or your browser). Discord decides which channel you land in; push-to-talk and mute are set inside Discord.'));
+      h('p', { class: 'muted small' }, 'Hold the mic button on the touring screen for in-app voice. The Discord button opens Discord (or your browser) as a backup; push-to-talk and mute are set inside Discord.'));
 
     /* ---- owner settings ---- */
     const owner = s.isOwner ? h('section', { class: 'sheet__section' },
@@ -106,6 +106,12 @@ export function openRoomSheet({ getState, actions, onClose }) {
           h('input', { type: 'checkbox', checked: s.keepAwake, onchange: (e) => actions.setKeepAwake(e.currentTarget.checked) }),
           h('span', { class: 'switch__track', 'aria-hidden': 'true' }))
         : h('p', { class: 'muted small' }, 'This browser cannot keep the screen on. Keep the app in the foreground while riding.'),
+      s.voiceSupported
+        ? h('label', { class: 'switch' },
+          h('span', {}, h('strong', {}, 'Tap to talk'), h('br'), h('span', { class: 'muted small' }, 'Off: hold the mic button while you speak. On: tap once to start, tap again to stop.')),
+          h('input', { type: 'checkbox', checked: s.voiceMode === 'toggle', onchange: (e) => actions.setVoiceMode(e.currentTarget.checked ? 'toggle' : 'hold') }),
+          h('span', { class: 'switch__track', 'aria-hidden': 'true' }))
+        : null,
       !s.isOwner ? h('button', { class: 'btn btn--danger', type: 'button', onclick: async () => {
         const yes = await confirmDialog({ title: 'Leave room?', message: 'Your shared location is removed and you need a new invite to return.', confirmLabel: 'Leave', danger: true });
         if (yes) { sheet.close(); await actions.leave(); }
