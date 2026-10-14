@@ -1,4 +1,4 @@
-# TouringTogether
+# TouringMaps
 
 Private, real-time coordination for motorcycle touring groups of 2–6 riders: live positions on a shared map, one shared destination, a route from each rider's own position, in-app push-to-talk voice, and a Discord backup button.
 
