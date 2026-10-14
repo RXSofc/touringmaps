@@ -31,28 +31,83 @@ function mapNetError(err) {
   return err;
 }
 
+const noExclude = new Set();   // provider ids whose server rejected `exclude=` (remembered for this session)
+
+/** Turns an OSRM route into what the app needs, including the road classes it uses. */
+function parseOsrmRoute(route) {
+  const line = route?.geometry?.coordinates;
+  if (!route || !Array.isArray(line) || line.length < 2 || !Number.isFinite(route.distance)) {
+    throw new RouteError('invalid', 'The routing service sent an unusable answer.');
+  }
+  const steps = [];
+  const classes = new Set();
+  for (const leg of route.legs || []) {
+    for (const st of leg.steps || []) {
+      const m = st.maneuver;
+      if (!m || !Array.isArray(m.location)) continue;
+      for (const inter of st.intersections || []) for (const c of inter.classes || []) classes.add(c);
+      steps.push({
+        type: m.type,
+        modifier: m.modifier || null,
+        exit: Number.isFinite(m.exit) ? m.exit : null,
+        bearingAfter: Number.isFinite(m.bearing_after) ? m.bearing_after : null,
+        name: String(st.name || ''),
+        distance: Number.isFinite(st.distance) ? st.distance : 0,
+        location: [m.location[1], m.location[0]]       // [lat, lng]
+      });
+    }
+  }
+  return {
+    coords: line.map(([lng, lat]) => [lat, lng]),
+    distanceMeters: route.distance,
+    durationSeconds: Number.isFinite(route.duration) ? route.duration : NaN,
+    steps,
+    classes: [...classes]
+  };
+}
+
 /** OSRM-compatible adapter (also fits self-hosted OSRM and most OSRM-style hosted services). */
 const ADAPTERS = {
   async osrm(p, from, to, signal) {
     const coords = `${from.longitude.toFixed(6)},${from.latitude.toFixed(6)};${to.longitude.toFixed(6)},${to.latitude.toFixed(6)}`;
-    const url = new URL(`${p.baseUrl.replace(/\/+$/, '')}/${coords}`);
-    url.searchParams.set('overview', R.overview);
-    url.searchParams.set('geometries', 'geojson');
-    url.searchParams.set('steps', 'false');
-    url.searchParams.set('alternatives', 'false');
-    if (p.apiKeyParam && p.apiKey) url.searchParams.set(p.apiKeyParam, p.apiKey);
-    const data = await fetchJson(url.toString(), { signal, timeoutMs: R.timeoutMs });
-    if (data?.code === 'NoRoute') throw new RouteError('no-route', 'No road route was found between these points.');
-    const route = data?.code === 'Ok' ? data.routes?.[0] : null;
-    const line = route?.geometry?.coordinates;
-    if (!route || !Array.isArray(line) || line.length < 2 || !Number.isFinite(route.distance)) {
-      throw new RouteError('invalid', 'The routing service sent an unusable answer.');
-    }
-    return {
-      coords: line.map(([lng, lat]) => [lat, lng]),
-      distanceMeters: route.distance,
-      durationSeconds: Number.isFinite(route.duration) ? route.duration : NaN
+    const build = (withExclude) => {
+      const url = new URL(`${p.baseUrl.replace(/\/+$/, '')}/${coords}`);
+      url.searchParams.set('overview', R.overview);
+      url.searchParams.set('geometries', 'geojson');
+      url.searchParams.set('steps', String(!!R.steps));
+      url.searchParams.set('alternatives', 'false');
+      if (withExclude && R.avoid.length) url.searchParams.set('exclude', R.avoid.join(','));
+      if (p.apiKeyParam && p.apiKey) url.searchParams.set(p.apiKeyParam, p.apiKey);
+      return url.toString();
     };
+    const wantExclude = R.avoid.length > 0 && !noExclude.has(p.id);
+
+    const ask = async (withExclude) => {
+      try {
+        return await fetchJson(build(withExclude), { signal, timeoutMs: R.timeoutMs });
+      } catch (err) {
+        if (err instanceof NetError && err.kind === 'http' && err.status === 400 && err.body) return err.body; // OSRM answers errors as JSON
+        throw err;
+      }
+    };
+
+    let data = await ask(wantExclude);
+    let excluded = wantExclude;
+    if (wantExclude && data?.code && !['Ok', 'NoRoute'].includes(data.code)) {
+      // This server does not understand `exclude=` (or the toll class). Remember it and retry;
+      // the returned route is then checked for toll/motorway classes instead.
+      noExclude.add(p.id);
+      excluded = false;
+      data = await ask(false);
+    }
+    if (data?.code === 'NoRoute') {
+      throw new RouteError(excluded ? 'no-route-toll-free' : 'no-route',
+        excluded ? 'No route without toll roads was found. Motorcycles cannot use toll roads, so use a maps app.' : 'No road route was found between these points.');
+    }
+    if (data?.code !== 'Ok') throw new RouteError('invalid', 'The routing service sent an unusable answer.');
+    const parsed = parseOsrmRoute(data.routes?.[0]);
+    const blocked = R.blockClasses.filter((c) => parsed.classes.includes(c));
+    return { ...parsed, tollAvoidedByServer: excluded, blockedClasses: blocked };
   }
 };
 
@@ -81,7 +136,7 @@ export async function fetchRoute(from, to, { signal } = {}) {
       return { ...result, provider: p.id, providerLabel: p.label, isFallback: p.id !== chain[0].id };
     } catch (raw) {
       const err = mapNetError(raw);
-      if (err.code === 'aborted' || err.code === 'no-route') throw err;
+      if (err.code === 'aborted' || err.code === 'no-route' || err.code === 'no-route-toll-free') throw err;
       if (err.code === 'rate-limit') r.coolUntil = Date.now() + R.cooldownMs;
       if (!RETRY_NEXT.has(err.code)) throw err;
       lastErr = err;
@@ -180,6 +235,20 @@ export class RouteManager {
     return true;
   }
 
+  /**
+   * Fast recalculation when the rider has left the route (turn guidance asked for it).
+   * Rate limited to `minGapMs`; a request inside that window is deferred, not dropped.
+   * The old route line stays on the map while the new one loads.
+   */
+  reroute(minGapMs = 8000) {
+    if (!this.destination || !this.origin || !this.enabled) return false;
+    clearTimeout(this._rerouteTimer);
+    const wait = Math.max(0, minGapMs - (Date.now() - this.lastRequestAt));
+    const run = () => { if (this.destination && this.origin) this._request('off-route', false); };
+    if (wait === 0) run(); else this._rerouteTimer = setTimeout(run, wait);
+    return true;
+  }
+
   _cancel() {
     this.generation += 1;
     if (this.controller) this.controller.abort();
@@ -208,5 +277,5 @@ export class RouteManager {
     }
   }
 
-  destroy() { this._cancel(); this.onChange = () => {}; }
+  destroy() { clearTimeout(this._rerouteTimer); this._cancel(); this.onChange = () => {}; }
 }

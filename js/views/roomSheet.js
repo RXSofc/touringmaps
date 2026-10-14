@@ -112,6 +112,12 @@ export function openRoomSheet({ getState, actions, onClose }) {
           h('input', { type: 'checkbox', checked: s.voiceMode === 'toggle', onchange: (e) => actions.setVoiceMode(e.currentTarget.checked ? 'toggle' : 'hold') }),
           h('span', { class: 'switch__track', 'aria-hidden': 'true' }))
         : null,
+      s.guidanceSupported
+        ? h('label', { class: 'switch' },
+          h('span', {}, h('strong', {}, 'Turn alerts'), h('br'), h('span', { class: 'muted small' }, 'A popup and vibration before turns, roundabouts and the destination. No sound. Works only while the screen is on.')),
+          h('input', { type: 'checkbox', checked: s.guidance, onchange: (e) => actions.setGuidance(e.currentTarget.checked) }),
+          h('span', { class: 'switch__track', 'aria-hidden': 'true' }))
+        : null,
       !s.isOwner ? h('button', { class: 'btn btn--danger', type: 'button', onclick: async () => {
         const yes = await confirmDialog({ title: 'Leave room?', message: 'Your shared location is removed and you need a new invite to return.', confirmLabel: 'Leave', danger: true });
         if (yes) { sheet.close(); await actions.leave(); }

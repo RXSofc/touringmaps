@@ -147,7 +147,10 @@ export const MAP_CONFIG = Object.freeze({
   routing: Object.freeze({
     chain: ['osrm-demo'],
     providers: ROUTING_PROVIDERS,
-    overview: 'simplified',
+    overview: 'full',             // full geometry: turn guidance measures distance along the real road line
+    steps: true,                  // turn-by-turn maneuvers (needed for guidance)
+    avoid: ['toll'],              // asked of the server (OSRM `exclude=`). Motorcycles may not use toll roads here.
+    blockClasses: ['toll', 'motorway'], // if the returned route still uses these, it is flagged UNSAFE and guidance is not run
     timeoutMs: 12000,
     cooldownMs: 60000,
     recalcMoveMeters: 300,        // re-route after moving this far from the route origin…

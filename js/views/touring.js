@@ -16,6 +16,7 @@ import {
 import { startRoomPresence, riderStatus, serverNow, serverOffset, onConnectionChange, isConnected } from '../presence.js';
 import { LocationTracker, LocationPublisher } from '../location.js';
 import { PositionFilter } from '../gps-filter.js';
+import { TurnGuide } from '../guidance.js';
 import { queryGeoPermission, watchGeoPermission, describePermission, PERMISSION_HELP, WakeLock } from '../permissions.js';
 import { TouringMap } from '../map.js';
 import { RouteManager, fetchRoute, externalNavLinks } from '../routing.js';
@@ -64,6 +65,7 @@ export function touringView(roomId) {
     legendOpen: false,
     ridersOpen: false,
     voiceMode: storage.get('tt.voiceMode') === 'toggle' ? 'toggle' : 'hold',   // hold the button, or tap to start/stop
+    guidance: APP.guidance.enabled && storage.get('tt.guidance') !== '0',   // turn alerts (per device)
     voiceMicHinted: false,
     backgroundGapMs: null,
     destNotice: null,           // {text}
@@ -82,6 +84,8 @@ export function touringView(roomId) {
   let gpsSheet = null;
   let stopPresence = null;
   let routeManager = null;
+  let guide = null;
+  let lastGuidedRoute = null;
   let destPanel = null;
   let roomSheet = null;
   let wakeLock = null;
@@ -268,6 +272,36 @@ export function touringView(roomId) {
       dismissible ? h('button', { class: 'btn btn--icon btn--sm btn--ghost', type: 'button', 'aria-label': 'Dismiss', onclick: () => { state.dismissed.add(key); render(); } }, icon('close')) : null);
   }
 
+  const VIBRATION = { far: [120], near: [120, 80, 120], now: [300], arrive: [200, 100, 200], offroute: [80, 60, 80, 60, 80] };
+  function vibrate(kind) {
+    if (!APP.guidance.vibrate || !state.guidance) return;
+    try { if (typeof navigator.vibrate === 'function') navigator.vibrate(VIBRATION[kind]); } catch { /* not supported in this WebView */ }
+  }
+  const roundTo10 = (m) => (m >= 1000 ? m : Math.max(10, Math.round(m / 10) * 10));
+
+  /** The turn popup (first item in the alert stack), or null when nothing is due. */
+  function navCard() {
+    const rt = state.route?.route;
+    if (!state.guidance) return null;
+    if (rt?.blockedClasses?.length) {
+      return h('div', { class: 'banner banner--danger', role: 'alert' }, icon('alert'),
+        h('div', { class: 'banner__body' }, h('strong', {}, 'Rute ini melewati jalan tol / bebas hambatan. '), 'Motor tidak boleh masuk tol, jadi petunjuk belokan dimatikan untuk rute ini. Pilih tujuan lain atau buka di aplikasi peta.'),
+        h('button', { class: 'btn btn--sm', type: 'button', onclick: onNavigateExternal }, 'Open in Maps'));
+    }
+    const v = guide?.view;
+    if (!v) return null;
+    if (v.kind === 'offroute') {
+      return h('div', { class: 'navcard navcard--offroute', role: 'status' }, icon('refresh'),
+        h('div', { class: 'navcard__body' }, h('strong', { class: 'navcard__title' }, 'Keluar jalur'), h('span', { class: 'navcard__detail' }, 'Menghitung ulang rute…')));
+    }
+    return h('div', { class: `navcard navcard--${v.stage}${v.kind === 'arrive' ? ' navcard--arrive' : ''}`, role: 'status', 'aria-live': 'polite' },
+      h('div', { class: 'navcard__icon' }, icon(v.icon)),
+      h('div', { class: 'navcard__body' },
+        v.kind === 'arrive' ? null : h('span', { class: 'navcard__dist' }, `${v.stage === 'now' ? 'Sekarang' : `Dalam ${formatDistance(roundTo10(v.distance))}`}`),
+        h('strong', { class: 'navcard__title' }, v.title),
+        v.detail ? h('span', { class: 'navcard__detail' }, v.detail) : null));
+  }
+
   function renderAlerts(riders) {
     const items = [];
     if (!isConnected()) items.push(banner('offline', 'warning', 'wifi', [h('strong', {}, 'No connection. '), 'Positions on screen may be out of date. Riders will not see you until you reconnect.'], { dismissible: false }));
@@ -282,10 +316,12 @@ export function touringView(roomId) {
     if (state.tileProblem) items.push(banner('tiles', 'warning', 'wifi', 'Map tiles are not loading. Positions are still accurate.'));
     if (state.destNotice) items.push(banner('destnotice', 'success', 'flag', state.destNotice.text, { dismissible: true }));
     const nodes = items.filter(Boolean);
+    const nav = navCard();
+    if (nav) nodes.unshift(nav);
     const talkers = riders.filter((r) => r.talking && !r.isSelf);
     if (talkers.length) {
       const names = talkers.map((r) => r.name);
-      nodes.unshift(h('div', { class: 'banner banner--voice', role: 'status' }, icon('mic'),
+      nodes.splice(nav ? 1 : 0, 0, h('div', { class: 'banner banner--voice', role: 'status' }, icon('mic'),
         h('div', { class: 'banner__body' }, h('strong', {}, names.length > 2 ? `${names[0]} +${names.length - 1}` : names.join(' & ')), ` ${names.length > 1 ? 'are' : 'is'} talking`)));
     }
     if (voice?.audioBlocked) {
@@ -600,7 +636,8 @@ export function touringView(roomId) {
     roomSheet = openRoomSheet({
       getState: () => ({
         uid, isOwner: isOwner(), meta: state.meta, members: state.members, banned: state.banned,
-        settings: state.settings, memberCount: memberCount(), keepAwake: state.keepAwake, voiceMode: state.voiceMode, voiceSupported: VOICE_SUPPORTED && APP.voice.enabled
+        settings: state.settings, memberCount: memberCount(), keepAwake: state.keepAwake, voiceMode: state.voiceMode, voiceSupported: VOICE_SUPPORTED && APP.voice.enabled,
+        guidance: state.guidance, guidanceSupported: APP.guidance.enabled
       }),
       actions: {
         removeMember: async (targetUid, m) => { try { await removeMember(roomId, targetUid, m); toast(`${m.displayName} was removed.`, { type: 'info' }); } catch (e) { toast(e.message, { type: 'error' }); } },
@@ -629,6 +666,7 @@ export function touringView(roomId) {
           } catch (e) { toast(e.message, { type: 'error' }); }
         },
         setVoiceMode: (mode) => { state.voiceMode = mode === 'toggle' ? 'toggle' : 'hold'; storage.set('tt.voiceMode', state.voiceMode); if (voice?.holding) endTalk(); render(); },
+        setGuidance: (on) => { state.guidance = !!on; storage.set('tt.guidance', on ? '1' : '0'); render(); },
         setKeepAwake: async (on) => {
           state.keepAwake = on;
           storage.set('tt.keepAwake', on ? '1' : '0');
@@ -652,7 +690,7 @@ export function touringView(roomId) {
         h('h3', {}, 'Routes'),
         h('p', {}, '* Route distance and time come from OpenStreetMap road data via the OSRM routing service. They are estimates for a ',
           h('strong', {}, 'car'), ' profile: no live traffic, no road closures, and not checked for motorcycle suitability. Use your own judgement on the road.'),
-        h('p', {}, 'Each rider’s route starts from that rider’s own position. It refreshes when the destination changes, when you move a long way, or when you leave the route. Use “Open in Maps” for turn-by-turn navigation.'),
+        h('p', {}, 'Each rider’s route starts from that rider’s own position. It refreshes when the destination changes, when you move a long way, or when you leave the route. Turn alerts (popup + vibration, no sound, toll roads avoided) follow the route while the screen is on; “Open in Maps” remains available as a backup.'),
         h('h3', {}, 'Location sharing'),
         h('p', {}, 'Your position is shared only with members of this room, only while this screen is open and at least two riders are in the room. Pausing or leaving deletes your shared position.'),
         h('p', {}, 'Browsers and app wrappers pause web pages when the screen locks. If you lock the phone or switch apps, others will see your position marked “old” or “offline” instead of pretending it is live. Turn on “Keep screen on” in the Room menu while riding.'),
@@ -706,6 +744,7 @@ export function touringView(roomId) {
     state.geoError = null;
     if (state.perm !== 'granted') state.perm = 'granted';
     if (state.backgroundGapMs) state.backgroundGapMs = null;
+    if (state.guidance) guide?.update(fix);
     routeManager.updateOrigin(fix);
     publishLatest();
     render();
@@ -801,12 +840,21 @@ export function touringView(roomId) {
       routeManager = new RouteManager({
         onChange: (rs) => {
           state.route = rs;
-          if (rs.status === 'ok' && rs.route) map.setRoute(rs.route.coords);
+          if (rs.status === 'ok' && rs.route) {
+            map.setRoute(rs.route.coords);
+            if (rs.route !== lastGuidedRoute) { lastGuidedRoute = rs.route; guide?.setRoute(rs.route); }
+          } else if (!rs.route && lastGuidedRoute) { lastGuidedRoute = null; guide?.setRoute(null); }
           else if (!state.destination) map.setRoute(null);
           render();
         }
       });
       cleanups.push(() => routeManager.destroy());
+
+      guide = new TurnGuide(APP.guidance, {
+        onAlert: ({ stage, maneuver }) => vibrate(maneuver.step.type === 'arrive' ? 'arrive' : stage),
+        onOffRoute: () => { vibrate('offroute'); routeManager.reroute(APP.guidance.rerouteMinIntervalMs); }
+      });
+      cleanups.push(() => { guide = null; try { navigator.vibrate?.(0); } catch { /* ignore */ } });
 
       wakeLock = new WakeLock();
       cleanups.push(() => wakeLock.destroy());

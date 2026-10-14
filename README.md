@@ -1,4 +1,4 @@
-# TouringMaps
+# TouringTogether
 
 Private, real-time coordination for motorcycle touring groups of 2–6 riders: live positions on a shared map, one shared destination, a route from each rider's own position, in-app push-to-talk voice, and a Discord backup button.
 
@@ -111,3 +111,6 @@ Differences from the suggested structure: screens are JS views behind a hash rou
 5. Lock B's screen for a minute, unlock: B shows the background banner, A saw "old fix" meanwhile.
 6. Owner removes B: B is told, can't reopen the room. Rotate the code and confirm the old code fails.
 7. Run `firebase/tests` (see `firebase/README.md`).
+
+## Turn alerts
+Popup + vibration before turns, roundabouts and arrival, no sound, toll roads avoided. See [docs/GUIDANCE.md](docs/GUIDANCE.md) for thresholds and limits.

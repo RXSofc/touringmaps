@@ -75,3 +75,6 @@ Same steps; `GEOCODER_PROVIDERS.locationiq.apiKey`, then `geocoder.chain: ['loca
 - [ ] Attribution is visible for every provider in use.
 - [ ] `contactEmail` is set for Nominatim if you still use it.
 - [ ] You tested with the provider blocked (devtools → block request URL) and the app still lets you set a destination by coordinates.
+
+## Toll roads
+Routing requests use `exclude=toll` and the result is scanned for toll/motorway classes (`routing.avoid`, `routing.blockClasses` in js/map-config.js). Details and limits: [GUIDANCE.md](GUIDANCE.md).

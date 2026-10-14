@@ -10,14 +10,14 @@
  * by Firebase Authentication plus firebase/database.rules.json.
  */
 export const firebaseConfig = {
-  apiKey: 'AIzaSyCJ17kf2QMBXXMebA7PDvRo80RARwuULA8',
-  authDomain: 'touringtogether-85465.firebaseapp.com',
-  databaseURL: 'https://touringtogether-85465-default-rtdb.asia-southeast1.firebasedatabase.app',
-  projectId: 'touringtogether-85465',
-  storageBucket: 'touringtogether-85465.firebasestorage.app',
-  messagingSenderId: '523677033304',
-  appId: '1:523677033304:web:86c4e7188bf3c47b533b2d',
-  measurementId: 'G-JG7GK129T9'
+  apiKey: 'AIzaSyCBSlVNYw7uOK-hzI654Qa6m49z1KJTqOg',
+  authDomain: 'one-v-one-d0742.firebaseapp.com',
+  databaseURL: 'https://one-v-one-d0742-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId: 'one-v-one-d0742',
+  storageBucket: 'one-v-one-d0742.firebasestorage.app',
+  messagingSenderId: '751391163068',
+  appId: '1:751391163068:web:0ad4421acfb02e0ba006b9',
+  measurementId: 'G-69W9H97JV2'
 };
 
 export function isFirebaseConfigured() {
@@ -30,7 +30,7 @@ export function isFirebaseConfigured() {
 
 export const APP = Object.freeze({
   name: 'TouringTogether',
-  version: '2026.10.13-1',   // shown on the sign-in screen so you can tell which build is running
+  version: '2026.10.14-1',   // shown on the sign-in screen so you can tell which build is running
 
   limits: Object.freeze({
     maxMembers: 6,              // enforced by database rules via six fixed slots
@@ -82,6 +82,20 @@ export const APP = Object.freeze({
     fastIntervalMs: 1500,        // …at most this often
     stationaryIntervalMs: 30000, // heartbeat while standing still
     maxAccuracyMeters: 100       // fixes worse than this are shown to me but not shared
+  }),
+
+  /** Turn alerts (js/guidance.js): popup + vibration, no sound. */
+  guidance: Object.freeze({
+    enabled: true,
+    farSeconds: 30, farMinM: 200, farMaxM: 500,    // first alert ~30 s ahead, between 200 and 500 m
+    nearSeconds: 10, nearMinM: 60, nearMaxM: 200,  // second alert ~10 s ahead, between 60 and 200 m
+    nowM: 30,                                      // third alert at the turn
+    passedM: 25,                                   // a maneuver this far behind you is done
+    arriveM: 25,                                   // "you have arrived" within this distance of the end
+    offRouteM: 40,                                 // farther than this from the route (or 1.5x GPS error)…
+    offRouteFixes: 3,                              // …for this many fixes in a row = off route
+    rerouteMinIntervalMs: 8000,                    // quick re-route after leaving the route, at most this often
+    vibrate: true
   }),
 
   /** How "fresh" a rider's last fix must be to be called live. */

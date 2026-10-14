@@ -2,11 +2,12 @@
 
 export class NetError extends Error {
   /** @param {'timeout'|'network'|'http'|'parse'|'aborted'} kind */
-  constructor(kind, message, status = null) {
+  constructor(kind, message, status = null, body = null) {
     super(message);
     this.name = 'NetError';
     this.kind = kind;
     this.status = status;
+    this.body = body;   // parsed JSON error body when the service sent one
   }
 }
 
@@ -44,7 +45,11 @@ export async function fetchJson(url, { signal, timeoutMs = 10000, headers } = {}
       if (signal?.aborted || err?.name === 'AbortError') throw new NetError('aborted', 'Cancelled');
       throw new NetError('network', 'Network error. Check your connection.');
     }
-    if (!res.ok) throw new NetError('http', `Service returned HTTP ${res.status}.`, res.status);
+    if (!res.ok) {
+      let body = null;
+      try { body = await res.json(); } catch { /* not JSON */ }
+      throw new NetError('http', `Service returned HTTP ${res.status}.`, res.status, body);
+    }
     try {
       return await res.json();
     } catch {
