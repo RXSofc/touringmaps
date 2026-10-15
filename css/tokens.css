@@ -1,20 +1,26 @@
 /* Design tokens: TouringTogether Neo-Brutalist system */
 :root {
-  /* Palette (spec starting point, refined for contrast) */
-  --color-bg: #F4F0E6;
-  --color-surface: #FFFFFF;
-  --color-text: #171717;
-  --color-text-soft: #4A463E;      /* 8.3:1 on --color-bg */
-  --color-border: #171717;
-  --color-primary: #C7F36B;
-  --color-primary-strong: #B3E64D;
-  --color-secondary: #FF765E;
-  --color-accent: #79B8FF;
-  --color-muted: #E5E1D7;
-  --color-success: #1F7A4A;        /* white text 5.4:1 */
-  --color-warning: #F4C95D;
-  --color-danger: #C5362F;         /* white text 5.5:1 */
-  --color-on-dark: #FFFFFF;
+  /* Palette: black, white, and red. Red is ONLY for cancel / back / close (X) buttons.
+     Every other state (active, live, warning, error, disabled) is told apart by
+     fill (black vs white), border style (solid / dashed / double) and hatching. */
+  --color-black: #000000;
+  --color-white: #FFFFFF;
+  --color-red: #E10600;
+  --color-bg: var(--color-white);
+  --color-surface: var(--color-white);
+  --color-text: var(--color-black);
+  --color-text-soft: var(--color-black);
+  --color-border: var(--color-black);
+  --color-primary: var(--color-black);          /* filled / active / selected */
+  --color-on-primary: var(--color-white);
+  --color-primary-strong: var(--color-black);
+  --color-secondary: var(--color-black);
+  --color-accent: var(--color-white);
+  --color-muted: var(--color-white);
+  --color-success: var(--color-black);
+  --color-warning: var(--color-white);
+  --color-danger: var(--color-red);             /* cancel / back / close only */
+  --color-on-dark: var(--color-white);
 
   /* Typography */
   --font-display: 'Space Grotesk', 'Arial Black', 'Helvetica Neue', Arial, system-ui, sans-serif;

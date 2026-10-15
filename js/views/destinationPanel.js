@@ -83,7 +83,7 @@ export function openDestinationPanel(opts) {
       lookupBtn ? h('div', {}, lookupBtn) : null,
       lookupMsg,
       h('div', { class: 'dest-preview__actions' },
-        h('button', { class: 'btn', type: 'button', onclick: clearCandidate }, 'Cancel'),
+        h('button', { class: 'btn btn--cancel', type: 'button', onclick: clearCandidate }, 'Cancel'),
         confirm));
   }
 
@@ -220,7 +220,7 @@ export function openDestinationPanel(opts) {
   /* ---------------- assemble ---------------- */
   const head = h('div', { class: 'dest-panel__head' },
     h('h2', {}, 'Destination'),
-    h('button', { class: 'btn btn--icon btn--sm', type: 'button', 'aria-label': 'Close destination panel', onclick: () => close() }, icon('close')));
+    h('button', { class: 'btn btn--icon btn--sm btn--cancel', type: 'button', 'aria-label': 'Close destination panel', onclick: () => close() }, icon('close')));
 
   body.append(
     currentBlock(),

@@ -41,9 +41,9 @@ function destinationEl(preview) {
   svg.setAttribute('viewBox', '0 0 64 64');
   svg.setAttribute('aria-hidden', 'true');
   svg.innerHTML =
-    '<path d="M14 58V6" stroke="#171717" stroke-width="6" fill="none"/>' +
-    '<path d="M17 8h38l-8 12 8 12H17z" fill="#FF765E" stroke="#171717" stroke-width="4" stroke-linejoin="miter"/>' +
-    '<path d="M24 10h8v8h-8zM40 10h8v8h-8zM32 18h8v8h-8zM24 26h8v4h-8zM40 26h6v4h-6z" fill="#171717"/>';
+    '<path d="M14 58V6" stroke="#000000" stroke-width="6" fill="none"/>' +
+    '<path d="M17 8h38l-8 12 8 12H17z" fill="#FFFFFF" stroke="#000000" stroke-width="4" stroke-linejoin="miter"/>' +
+    '<path d="M24 10h8v8h-8zM40 10h8v8h-8zM32 18h8v8h-8zM24 26h8v4h-8zM40 26h6v4h-6z" fill="#000000"/>';
   return h('div', { class: `dest-marker${preview ? ' is-preview' : ''}` }, svg,
     h('div', { class: 'dest-marker__label' }, preview ? 'PREVIEW' : 'DEST'));
 }
@@ -189,8 +189,8 @@ export class TouringMap {
     const ll = [fix.latitude, fix.longitude];
     if (!this.accuracyCircle) {
       this.accuracyCircle = L.circle(ll, {
-        radius: fix.accuracy, color: '#171717', weight: 1.5, dashArray: '4 4',
-        fillColor: '#79B8FF', fillOpacity: 0.18, interactive: false
+        radius: fix.accuracy, color: '#000000', weight: 1.5, dashArray: '4 4',
+        fillColor: '#000000', fillOpacity: 0.08, interactive: false
       }).addTo(this.map);
     } else {
       if (![...this.riders.values()].some((e) => e.data.isSelf)) this.accuracyCircle.setLatLng(ll); // otherwise the animation loop moves it
@@ -237,17 +237,17 @@ export class TouringMap {
     this.routeLayer.clearLayers();
     this.routeCoords = coords || null;
     if (!coords) return;
-    // dark casing under a bright line keeps the route readable on any basemap
-    L.polyline(coords, { color: '#171717', weight: 10, opacity: 0.95, lineCap: 'butt', lineJoin: 'miter', interactive: false, className: 'route-casing' }).addTo(this.routeLayer);
-    L.polyline(coords, { color: '#C7F36B', weight: 5, opacity: 1, lineCap: 'butt', lineJoin: 'miter', interactive: false }).addTo(this.routeLayer);
+    // black casing under a white line keeps the route readable on the grayscale basemap
+    L.polyline(coords, { color: '#000000', weight: 10, opacity: 1, lineCap: 'butt', lineJoin: 'miter', interactive: false, className: 'route-casing' }).addTo(this.routeLayer);
+    L.polyline(coords, { color: '#FFFFFF', weight: 5, opacity: 1, lineCap: 'butt', lineJoin: 'miter', interactive: false }).addTo(this.routeLayer);
     this._applyRouteVisibility();
   }
 
   setOtherRoute(coords) {
     this.otherRouteLayer.clearLayers();
     if (!coords) return;
-    L.polyline(coords, { color: '#171717', weight: 8, opacity: 0.9, interactive: false }).addTo(this.otherRouteLayer);
-    L.polyline(coords, { color: '#79B8FF', weight: 4, dashArray: '10 8', interactive: false }).addTo(this.otherRouteLayer);
+    L.polyline(coords, { color: '#000000', weight: 8, opacity: 1, interactive: false }).addTo(this.otherRouteLayer);
+    L.polyline(coords, { color: '#FFFFFF', weight: 4, dashArray: '10 8', interactive: false }).addTo(this.otherRouteLayer);
   }
 
   setRouteVisible(visible) {

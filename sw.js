@@ -11,7 +11,7 @@
  *
  * Bump VERSION when you want to drop old caches.
  */
-const VERSION = 'tt-v8';
+const VERSION = 'tt-v10';
 const SHELL_CACHE = `${VERSION}-shell`;
 const SDK_CACHE = `${VERSION}-sdk`;
 
@@ -50,6 +50,7 @@ const SHELL = [
   'js/guidance.js',
   'js/motion.js',
   'js/views/gpsSheet.js',
+  'js/views/voiceSheet.js',
   'js/voice.js',
   'js/signaling.js',
   'js/views/setup.js',

@@ -15,7 +15,7 @@ export function profileView() {
       catch {
         mountInto(root, h('div', { class: 'auth-shell' }, h('div', { class: 'card' },
           h('div', { class: 'banner banner--danger', role: 'alert' }, icon('alert'), h('div', { class: 'banner__body' }, 'Could not load your profile.')),
-          h('a', { class: 'btn', href: '#/dashboard' }, 'Back'))));
+          h('a', { class: 'btn btn--cancel', href: '#/dashboard' }, 'Back'))));
         return;
       }
 
@@ -99,7 +99,7 @@ export function profileView() {
 
       mountInto(root, h('div', { class: 'page' },
         h('header', { class: 'page__head' },
-          h('a', { class: 'btn btn--sm', href: '#/dashboard' }, icon('back'), 'Back'),
+          h('a', { class: 'btn btn--sm btn--cancel', href: '#/dashboard' }, icon('back'), 'Back'),
           h('h1', { class: 'page__title' }, 'Profile')),
         h('div', { class: 'grid-2' },
           h('section', { class: 'card', 'aria-labelledby': 'prof-title' }, h('h2', { class: 'card__title', id: 'prof-title' }, icon('user'), 'Rider profile'), form),

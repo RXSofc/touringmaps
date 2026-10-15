@@ -23,6 +23,32 @@ import { serverNow } from './presence.js';
 import { createSignaling } from './signaling.js';
 
 const CFG = APP.voice;
+// Entries still holding YOUR_… placeholders are ignored, never sent to the browser as real servers.
+const ICE_SERVERS = (CFG.iceServers || []).filter((x) => !/YOUR_/i.test(JSON.stringify(x)));
+export const TURN_CONFIGURED = ICE_SERVERS.some((x) => [].concat(x.urls).some((u) => /^turns?:/i.test(u)));
+
+/** Summarise one RTCPeerConnection for the diagnostics sheet. Never throws. */
+async function describePc(pc, extra) {
+  const o = { ...extra, connection: pc.connectionState, ice: pc.iceConnectionState, gathering: pc.iceGatheringState, signaling: pc.signalingState };
+  try {
+    const stats = await pc.getStats();
+    const local = {}; let pair = null; const byId = new Map();
+    stats.forEach((r) => byId.set(r.id, r));
+    stats.forEach((r) => {
+      if (r.type === 'local-candidate') local[r.candidateType] = (local[r.candidateType] || 0) + 1;
+      if (r.type === 'transport' && r.selectedCandidatePairId) pair = byId.get(r.selectedCandidatePairId);
+      if (r.type === 'outbound-rtp' && r.kind === 'audio') { o.bytesSent = r.bytesSent; o.packetsSent = r.packetsSent; }
+      if (r.type === 'inbound-rtp' && r.kind === 'audio') { o.bytesReceived = r.bytesReceived; o.packetsReceived = r.packetsReceived; o.packetsLost = r.packetsLost; o.jitterMs = Math.round((r.jitter || 0) * 1000); o.audioEnergy = r.totalAudioEnergy; }
+    });
+    if (!pair) stats.forEach((r) => { if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded') pair = r; });
+    o.localCandidates = local;
+    if (pair) {
+      o.pair = `${byId.get(pair.localCandidateId)?.candidateType || '?'} -> ${byId.get(pair.remoteCandidateId)?.candidateType || '?'} (${byId.get(pair.localCandidateId)?.protocol || '?'})`;
+      o.rttMs = pair.currentRoundTripTime != null ? Math.round(pair.currentRoundTripTime * 1000) : null;
+    }
+  } catch (e) { o.statsError = String(e?.message || e); }
+  return o;
+}
 
 export const VOICE_SUPPORTED = typeof RTCPeerConnection === 'function'
   && !!navigator.mediaDevices?.getUserMedia
@@ -96,7 +122,10 @@ export class VoiceChat {
     this.flags = {};             // uid -> {at}
     this.unsubs = [];
     this.audioHost = null;
+    this.events = [];            // short diagnostic log (newest last)
   }
+
+  ev(msg) { this.events.push(`${new Date().toLocaleTimeString('en-GB')} ${msg}`); if (this.events.length > 80) this.events.shift(); }
 
   /* ----------------------------------------------------------------- setup */
   start() {
@@ -110,6 +139,7 @@ export class VoiceChat {
       },
       onTalk: (flags) => { this.flags = flags; this.emit(); }
     });
+    this.ev(`signalling: ${this.sig.kind}`);
     Promise.resolve(this.sig.start()).catch((err) => { console.warn('voice signalling failed to start', err); this.onProblem('', 'signaling'); });
     const unlock = () => { if (this.audioBlocked) this.playAll(); };
     document.addEventListener('pointerdown', unlock, true);
@@ -145,6 +175,7 @@ export class VoiceChat {
     if (this.destroyed || this.holding) return { ok: true };
     if (!VOICE_SUPPORTED) { this.micError = 'unsupported'; this.emit(); return { ok: false, reason: 'unsupported' }; }
     this.holding = true;
+    this.ev('press');
     const seq = ++this.pressSeq;
     this.emit();
 
@@ -152,6 +183,7 @@ export class VoiceChat {
       await this.ensureMic();
     } catch (err) {
       this.holding = false;
+      this.ev(`mic error: ${err?.name || err}`);
       this.micError = err?.name === 'NotAllowedError' || err?.name === 'SecurityError' ? 'denied'
         : err?.name === 'NotFoundError' || err?.name === 'OverconstrainedError' ? 'nomic' : 'error';
       this.emit();
@@ -167,6 +199,7 @@ export class VoiceChat {
     this.transmitting = true;
     this.mic.track.enabled = true;
     this.holdTimer = setTimeout(() => this.release(), CFG.maxTalkMs);
+    this.ev(`mic live, peers online: ${this.getPeers().length}`);
     this.announce(true);
     this.syncPeers();
     this.emit();
@@ -251,7 +284,8 @@ export class VoiceChat {
   async openTx(peer) {
     if (!this.mic) return;
     const sid = rid();
-    const pc = new RTCPeerConnection({ iceServers: CFG.iceServers });
+    this.ev(`tx -> ${peer.uid.slice(0, 5)} opening`);
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     const entry = { pc, sid, peer: peer.uid, epoch: peer.epoch, sender: null, offerSent: false, queued: [], timer: null, problem: false };
     this.tx.set(peer.uid, entry);
     this.bySid.set(sid, { kind: 'tx', entry });
@@ -269,6 +303,7 @@ export class VoiceChat {
     };
     pc.onconnectionstatechange = () => {
       const s = stateOf(pc);
+      this.ev(`tx ${peer.uid.slice(0, 5)} ${s}`);
       if (s === 'connected') clearTimeout(entry.timer);
       if (s === 'failed') this.failTx(entry, 'blocked');
       this.emit();
@@ -282,6 +317,7 @@ export class VoiceChat {
       if (this.destroyed || this.tx.get(peer.uid) !== entry) return;
       this.signal(peer.uid, 'offer', sid, JSON.stringify({ type: offer.type, sdp: offer.sdp }));
       entry.offerSent = true;
+      this.ev(`tx ${peer.uid.slice(0, 5)} offer sent via ${this.sig?.kind}`);
       for (const data of entry.queued.splice(0)) this.signal(peer.uid, 'ice', sid, data);
     } catch (err) { this.failTx(entry, 'error', err); }
   }
@@ -297,6 +333,7 @@ export class VoiceChat {
 
   failTx(entry, kind, err) {
     if (err) console.warn('voice:', kind, err);
+    this.ev(`tx ${entry.peer.slice(0, 5)} FAILED: ${kind}${err ? ` (${err.message || err})` : ''}`);
     clearTimeout(entry.timer);
     if (!entry.problem) { entry.problem = true; this.onProblem(entry.peer, kind); }
     if (this.tx.get(entry.peer) === entry) this.closeTx(entry.peer, kind, { keepProblem: true });
@@ -333,6 +370,7 @@ export class VoiceChat {
       case 'answer': {
         const hit = this.bySid.get(m.sid);
         if (hit?.kind !== 'tx' || hit.entry.peer !== from) return;
+        this.ev(`tx ${from.slice(0, 5)} answer received`);
         await hit.entry.pc.setRemoteDescription(data);
         return this.flushIce(m.sid, hit.entry.pc);
       }
@@ -363,9 +401,10 @@ export class VoiceChat {
   /* ----------------------------------------------------------------- listeners */
   async acceptOffer(from, sid, offer) {
     if (this.destroyed || !offer?.sdp) return;
+    this.ev(`rx offer from ${from.slice(0, 5)}`);
     for (const [oldSid, r] of this.rx) if (r.from === from) this.closeRx(oldSid); // one stream per talker
 
-    const pc = new RTCPeerConnection({ iceServers: CFG.iceServers });
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     const entry = { pc, from, audio: null, timer: null };
     this.rx.set(sid, entry);
     this.bySid.set(sid, { kind: 'rx', entry });
@@ -374,6 +413,7 @@ export class VoiceChat {
     pc.ontrack = (e) => this.attachAudio(entry, e.streams[0] || new MediaStream([e.track]));
     pc.onconnectionstatechange = () => {
       const s = stateOf(pc);
+      this.ev(`rx ${from.slice(0, 5)} ${s}`);
       if (s === 'failed' || s === 'closed') this.closeRx(sid);
       this.emit();
     };
@@ -384,6 +424,7 @@ export class VoiceChat {
     answer.sdp = tuneOpus(answer.sdp, CFG.bitrate);
     await pc.setLocalDescription(answer);
     if (this.destroyed || this.rx.get(sid) !== entry) return;
+    this.ev(`rx answer sent to ${from.slice(0, 5)}`);
     this.signal(from, 'answer', sid, JSON.stringify({ type: answer.type, sdp: answer.sdp }));
   }
 
@@ -398,6 +439,7 @@ export class VoiceChat {
     audio.autoplay = true;
     audio.setAttribute('playsinline', '');
     audio.srcObject = stream;
+    this.ev('rx audio track arrived');
     this.audioHost.append(audio);
     entry.audio = audio;
     this.play(audio);
@@ -406,8 +448,8 @@ export class VoiceChat {
   play(audio) {
     const p = audio.play();
     if (p && typeof p.then === 'function') {
-      p.then(() => { if (this.audioBlocked) { this.audioBlocked = false; this.emit(); } })
-        .catch(() => { this.audioBlocked = true; this.emit(); });
+      p.then(() => { this.ev('audio playing'); if (this.audioBlocked) { this.audioBlocked = false; this.emit(); } })
+        .catch((e) => { this.ev(`audio BLOCKED: ${e?.name || e}`); this.audioBlocked = true; this.emit(); });
     }
   }
 
@@ -423,6 +465,28 @@ export class VoiceChat {
     try { r.pc.close(); } catch { /* already closed */ }
     if (r.audio) { r.audio.srcObject = null; r.audio.remove(); }
     this.emit();
+  }
+
+  /* -------------------------------------------------------------- diagnostics */
+  /** A snapshot for the diagnostics sheet / "copy report". */
+  async diagnose() {
+    const m = this.mic?.track;
+    const out = {
+      signalling: this.sig?.kind || 'none',
+      turn: TURN_CONFIGURED ? 'configured' : 'NOT configured (STUN only)',
+      mic: this.micError ? `error: ${this.micError}` : m ? `${m.readyState}${m.enabled ? ', sending' : ', muted'}` : 'closed (opens on first press)',
+      audioBlocked: this.audioBlocked,
+      transmitting: this.transmitting,
+      onlinePeers: this.getPeers().map((p) => p.uid.slice(0, 5)),
+      tx: [], rx: [], events: [...this.events]
+    };
+    for (const t of this.tx.values()) {
+      out.tx.push(await describePc(t.pc, { to: t.peer.slice(0, 5), offerSent: t.offerSent, queuedIce: t.queued.length, failed: t.problem, track: t.sender?.track ? `${t.sender.track.readyState}${t.sender.track.enabled ? '/on' : '/off'}` : 'none' }));
+    }
+    for (const r of this.rx.values()) {
+      out.rx.push(await describePc(r.pc, { from: r.from.slice(0, 5), audioEl: r.audio ? (r.audio.paused ? 'PAUSED' : 'playing') : 'none' }));
+    }
+    return out;
   }
 
   /* ------------------------------------------------------------------ teardown */

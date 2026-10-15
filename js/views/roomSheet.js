@@ -112,6 +112,7 @@ export function openRoomSheet({ getState, actions, onClose }) {
           h('input', { type: 'checkbox', checked: s.voiceMode === 'toggle', onchange: (e) => actions.setVoiceMode(e.currentTarget.checked ? 'toggle' : 'hold') }),
           h('span', { class: 'switch__track', 'aria-hidden': 'true' }))
         : null,
+      s.voiceSupported ? h('button', { class: 'btn btn--sm', type: 'button', onclick: () => { sheet.close(); actions.openVoiceDiag(); } }, 'Voice diagnostics') : null,
       s.guidanceSupported
         ? h('label', { class: 'switch' },
           h('span', {}, h('strong', {}, 'Turn alerts'), h('br'), h('span', { class: 'muted small' }, 'A popup and vibration before turns, roundabouts and the destination. No sound. Works only while the screen is on.')),

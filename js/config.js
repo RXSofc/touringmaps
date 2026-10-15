@@ -30,7 +30,7 @@ export function isFirebaseConfigured() {
 
 export const APP = Object.freeze({
   name: 'TouringTogether',
-  version: '2026.10.14-1',   // shown on the sign-in screen so you can tell which build is running
+  version: '2026.10.14-3',   // shown on the sign-in screen so you can tell which build is running
 
   limits: Object.freeze({
     maxMembers: 6,              // enforced by database rules via six fixed slots

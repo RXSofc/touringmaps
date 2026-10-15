@@ -26,6 +26,7 @@ import { haversine } from '../geo.js';
 import { openDestinationPanel } from './destinationPanel.js';
 import { openRoomSheet } from './roomSheet.js';
 import { openGpsSheet } from './gpsSheet.js';
+import { openVoiceSheet } from './voiceSheet.js';
 import { navigate } from '../router.js';
 
 const storage = {
@@ -82,6 +83,7 @@ export function touringView(roomId) {
   const gpsFilter = new PositionFilter(APP.gps.filter);
   const gpsStats = { received: 0, rejected: 0, published: 0, skippedAccuracy: 0, deviceDoppler: null, log: [] };
   let gpsSheet = null;
+  let voiceSheet = null;
   let stopPresence = null;
   let routeManager = null;
   let guide = null;
@@ -103,7 +105,7 @@ export function touringView(roomId) {
 
   /* ---------------------------------------------------------- layout */
   function buildLayout() {
-    els.back = h('a', { class: 'btn btn--icon btn--sm topbar__back', href: '#/dashboard', 'aria-label': 'Back to dashboard' }, icon('back'));
+    els.back = h('a', { class: 'btn btn--icon btn--sm btn--cancel topbar__back', href: '#/dashboard', 'aria-label': 'Back to dashboard' }, icon('back'));
     els.name = h('div', { class: 'topbar__name' }, 'Room');
     els.sub = h('div', { class: 'topbar__sub mono' }, '');
     els.connChip = h('span', { class: 'chip chip--muted' }, 'Connecting');
@@ -269,7 +271,7 @@ export function touringView(roomId) {
       icon(iconName),
       h('div', { class: 'banner__body' }, body),
       action ? h('button', { class: 'btn btn--sm', type: 'button', onclick: action.onClick }, action.label) : null,
-      dismissible ? h('button', { class: 'btn btn--icon btn--sm btn--ghost', type: 'button', 'aria-label': 'Dismiss', onclick: () => { state.dismissed.add(key); render(); } }, icon('close')) : null);
+      dismissible ? h('button', { class: 'btn btn--icon btn--sm btn--ghost btn--cancel', type: 'button', 'aria-label': 'Dismiss', onclick: () => { state.dismissed.add(key); render(); } }, icon('close')) : null);
   }
 
   const VIBRATION = { far: [120], near: [120, 80, 120], now: [300], arrive: [200, 100, 200], offroute: [80, 60, 80, 60, 80] };
@@ -336,7 +338,7 @@ export function touringView(roomId) {
     els.btnRiders.querySelector('.dock__count').textContent = String(riders.length);
     if (!state.ridersOpen) return;
     mountInto(els.riderPanel,
-      h('div', { class: 'rider-panel__head' }, h('h2', {}, 'Riders'), h('button', { class: 'btn btn--icon btn--sm', type: 'button', 'aria-label': 'Close riders list', onclick: () => { state.ridersOpen = false; render(); } }, icon('close'))),
+      h('div', { class: 'rider-panel__head' }, h('h2', {}, 'Riders'), h('button', { class: 'btn btn--icon btn--sm btn--cancel', type: 'button', 'aria-label': 'Close riders list', onclick: () => { state.ridersOpen = false; render(); } }, icon('close'))),
       h('ul', { class: 'list' }, riders.map((r) => {
         const lab = stateLabel(r);
         const sub = [
@@ -365,7 +367,7 @@ export function touringView(roomId) {
       h('div', { class: 'rider-card__head' },
         avatarImg(r.member, r.uid, 'avatar'),
         h('div', { class: 'row__main' }, h('strong', {}, r.name, r.isSelf ? ' (you)' : ''), h('div', { class: `chip chip--${lab.tone}` }, h('span', { class: `dot dot--${r.state}` }), lab.text)),
-        h('button', { class: 'btn btn--icon btn--sm', type: 'button', 'aria-label': 'Close rider details', onclick: () => selectRider(null) }, icon('close'))),
+        h('button', { class: 'btn btn--icon btn--sm btn--cancel', type: 'button', 'aria-label': 'Close rider details', onclick: () => selectRider(null) }, icon('close'))),
       h('dl', { class: 'kv' },
         h('dt', {}, 'Position'), h('dd', { class: 'mono' }, r.lat !== null ? formatLatLng(r.lat, r.lng) : 'Not shared'),
         h('dt', {}, 'Last fix'), h('dd', {}, r.ageMs === null ? '–' : `${formatAge(r.ageMs)} ago${r.state === 'offline' || r.state === 'stale' || r.state === 'lost' ? ' (not live)' : ''}`),
@@ -666,6 +668,7 @@ export function touringView(roomId) {
           } catch (e) { toast(e.message, { type: 'error' }); }
         },
         setVoiceMode: (mode) => { state.voiceMode = mode === 'toggle' ? 'toggle' : 'hold'; storage.set('tt.voiceMode', state.voiceMode); if (voice?.holding) endTalk(); render(); },
+        openVoiceDiag: () => { if (voiceSheet) return; voiceSheet = openVoiceSheet({ voice, getContext: () => ({ version: APP.version }), onClose: () => { voiceSheet = null; } }); },
         setGuidance: (on) => { state.guidance = !!on; storage.set('tt.guidance', on ? '1' : '0'); render(); },
         setKeepAwake: async (on) => {
           state.keepAwake = on;

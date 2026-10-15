@@ -10,11 +10,6 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   background-color: var(--color-bg);
-  /* faint survey-grid texture: hard lines, no soft gradients */
-  background-image:
-    linear-gradient(rgba(23, 23, 23, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(23, 23, 23, 0.045) 1px, transparent 1px);
-  background-size: 24px 24px;
   color: var(--color-text);
   font: 400 1rem/1.5 var(--font-body);
   -webkit-tap-highlight-color: transparent;
@@ -36,10 +31,10 @@ h3 { font-size: 1.05rem; }
 
 p { margin: 0 0 var(--space-3); }
 a { color: inherit; text-decoration-thickness: 2px; text-underline-offset: 3px; }
-a:hover { background: var(--color-primary); }
+a:hover { background: var(--color-primary); color: var(--color-on-primary); }
 
 small, .small { font-size: 0.8125rem; }
-.muted { color: var(--color-text-soft); }
+.muted { color: inherit; }
 .mono { font-family: var(--font-mono); font-size: 0.875em; letter-spacing: -0.01em; }
 
 img, svg { max-width: 100%; }
@@ -57,6 +52,7 @@ img, svg { max-width: 100%; }
   z-index: 5000;
   padding: var(--space-2) var(--space-3);
   background: var(--color-primary);
+  color: var(--color-on-primary);
   border: var(--border-2);
   font-weight: 700;
 }
@@ -76,7 +72,7 @@ img, svg { max-width: 100%; }
 
 .noscript { padding: var(--space-4); font-weight: 700; }
 
-::selection { background: var(--color-primary); color: var(--color-text); }
+::selection { background: var(--color-primary); color: var(--color-on-primary); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

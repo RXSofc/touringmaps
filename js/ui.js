@@ -134,7 +134,7 @@ export function openSheet({ title, content, footer, onClose, className = '' }) {
   const sheet = h('div', { class: `sheet ${className}`.trim(), role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId },
     h('div', { class: 'sheet__head' },
       h('h2', { class: 'sheet__title', id: titleId }, title),
-      h('button', { type: 'button', class: 'btn btn--icon btn--sm', 'aria-label': 'Close', onclick: () => close() }, icon('close'))
+      h('button', { type: 'button', class: 'btn btn--icon btn--sm btn--cancel', 'aria-label': 'Close', onclick: () => close() }, icon('close'))
     ),
     body,
     footer ? h('div', { class: 'sheet__foot' }, footer) : null
@@ -304,13 +304,14 @@ export function cleanText(value, max) {
 
 /** Inline SVG data-URL avatar with the rider's initial. Used when no photo is set. */
 export function defaultAvatar(name, seed = '') {
-  const palette = ['#C7F36B', '#FF765E', '#79B8FF', '#F4C95D', '#E5E1D7', '#B8F2E6'];
+  const palette = ['#FFFFFF', '#000000'];
   let hash = 0;
   for (const ch of `${seed}${name}`) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
   const bg = palette[hash % palette.length];
+  const fg = bg === '#000000' ? '#FFFFFF' : '#000000';
   const initial = ([...String(name || '?').trim()][0] || '?').toUpperCase();
   const safe = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[initial] || initial;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="${bg}"/><text x="32" y="43" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="34" fill="#171717">${safe}</text></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="${bg}"/><text x="32" y="43" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="34" fill="${fg}">${safe}</text></svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
