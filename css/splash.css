@@ -1,0 +1,83 @@
+/* Launch splash. Black, white only. Paint-critical: loaded before every other stylesheet.
+   Concept: three riders arrive from different directions, their routes draw themselves and
+   merge into one road. The road is the loading indicator, then widens to become the page. */
+#splash {
+  --sp-y: 57vh;                         /* where the routes meet (set from JS, follows the SVG) */
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #000;
+  color: #fff;
+  overflow: hidden;
+  transition: opacity 0.3s linear;
+}
+#splash.is-gone { opacity: 0; pointer-events: none; }
+.sp-art { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.sp-trail { fill: none; stroke: #fff; stroke-width: 3.5; stroke-linecap: square; stroke-linejoin: miter; }
+.sp-head { opacity: 0; }
+.sp-head.is-on { opacity: 1; }
+.sp-head rect.o { fill: #fff; }
+.sp-head rect.i { fill: #000; }
+.sp-head path { stroke: #fff; stroke-width: 2; fill: none; }
+
+/* wordmark: two lines, every letter slams up from under a hard clip edge */
+.sp-stage {
+  position: absolute;
+  left: 0; right: 0;
+  top: var(--sp-y);
+  transform: translateY(-100%);
+  padding: 0 6vw 22px;
+  text-align: center;
+  font: 900 clamp(2rem, 14.5vw, 5.5rem)/0.9 'Arial Black', system-ui, sans-serif;
+  letter-spacing: -0.045em;
+  text-transform: uppercase;
+}
+.sp-line { display: block; overflow: hidden; padding: 0.04em 0; }
+.sp-line + .sp-line { margin-top: -0.02em; }
+.sp-ch { display: inline-block; transform: translateY(112%); }
+#splash.is-title .sp-ch { animation: sp-slam 0.75s cubic-bezier(0.2, 0.9, 0.1, 1) forwards; animation-delay: calc(var(--i) * 80ms); }
+@keyframes sp-slam { 0% { transform: translateY(112%); } 70% { transform: translateY(-6%); } 100% { transform: translateY(0); } }
+
+.sp-tag {
+  position: absolute;
+  left: 0; right: 0;
+  top: calc(var(--sp-y) + 26px);
+  text-align: center;
+  font: 700 0.7rem/1 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  min-height: 1em;
+}
+.sp-tag:empty::after { display: none; }
+.sp-tag::after { content: ""; display: inline-block; width: 0.5em; height: 0.9em; margin-left: 0.2em; background: #fff; vertical-align: -0.1em; animation: sp-caret 0.9s steps(1) infinite; }
+@keyframes sp-caret { 50% { opacity: 0; } }
+
+/* the road: white bar with black center dashes that keep marching while the app loads */
+.sp-road {
+  position: absolute;
+  left: 50%; top: var(--sp-y);
+  width: 0; height: 8px;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  overflow: hidden;
+  transition: width 0.7s cubic-bezier(0.2, 0.9, 0.1, 1), height 0.9s cubic-bezier(0.8, 0, 0.2, 1);
+}
+.sp-road::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: calc(50% - 1px);
+  height: 2px;
+  background: repeating-linear-gradient(90deg, #000 0 12px, transparent 12px 24px);
+  animation: sp-march 0.55s linear infinite;
+}
+@keyframes sp-march { to { background-position-x: 24px; } }
+#splash.is-merged .sp-road { width: min(74vw, 300px); }
+/* leaving: the road swells in every direction until it is the white page */
+#splash.is-leaving .sp-road { width: 130vw; height: 130vh; transition: width 0.85s cubic-bezier(0.8, 0, 0.2, 1), height 0.85s cubic-bezier(0.8, 0, 0.2, 1); }
+#splash.is-leaving .sp-road::after { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-ch { transform: none; animation: none !important; }
+  .sp-road, #splash.is-leaving .sp-road { transition: none; }
+  .sp-road::after, .sp-tag::after { animation: none; }
+}

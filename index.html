@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Space+Grotesk:wght@500;700&display=swap">
 
   <!-- Leaflet CSS/JS are loaded by js/app.js (vendor/leaflet first, then CDN fallback). -->
+  <link rel="stylesheet" href="css/splash.css">
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/components.css">
@@ -25,14 +26,26 @@
   <link rel="stylesheet" href="css/responsive.css">
 </head>
 <body>
+  <!-- Launch splash: three routes draw themselves and merge into one road (css/splash.css, js/splash.js). -->
+  <div id="splash" role="status" aria-label="Loading TouringTogether">
+    <svg class="sp-art" viewBox="0 0 360 720" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+      <path class="sp-trail" d="M-40 110 C 90 50, 170 190, 96 268 S 130 372, 180 410"/>
+      <path class="sp-trail" d="M-40 660 C 70 716, 30 548, 132 506 S 150 438, 180 410"/>
+      <path class="sp-trail" d="M400 236 C 290 196, 336 338, 252 362 S 214 398, 180 410"/>
+      <circle class="sp-meet" cx="180" cy="410" r="0"/>
+      <g class="sp-head"><rect class="o" x="-9" y="-9" width="18" height="18"/><rect class="i" x="-3" y="-3" width="6" height="6"/><path d="M9 0h12"/></g>
+      <g class="sp-head"><rect class="o" x="-9" y="-9" width="18" height="18"/><rect class="i" x="-3" y="-3" width="6" height="6"/><path d="M9 0h12"/></g>
+      <g class="sp-head"><rect class="o" x="-9" y="-9" width="18" height="18"/><rect class="i" x="-3" y="-3" width="6" height="6"/><path d="M9 0h12"/></g>
+    </svg>
+    <div class="sp-stage"><span class="sp-line">Touring</span><span class="sp-line">Together</span></div>
+    <div class="sp-road"></div>
+    <div class="sp-tag" aria-hidden="true"></div>
+  </div>
+  <script src="js/splash.js"></script>
+
   <a class="skip-link" href="#app">Skip to content</a>
 
-  <main id="app" class="app" tabindex="-1">
-    <div class="boot" role="status">
-      <span class="spinner" aria-hidden="true"></span>
-      <span>Loading TouringTogether…</span>
-    </div>
-  </main>
+  <main id="app" class="app" tabindex="-1"></main>
 
   <div id="toasts" class="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
 

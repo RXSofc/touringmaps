@@ -11,7 +11,7 @@
  *
  * Bump VERSION when you want to drop old caches.
  */
-const VERSION = 'tt-v10';
+const VERSION = 'tt-v14';
 const SHELL_CACHE = `${VERSION}-shell`;
 const SDK_CACHE = `${VERSION}-sdk`;
 
@@ -20,6 +20,7 @@ const SHELL = [
   'index.html',
   'manifest.webmanifest',
   'assets/icons/icon.svg',
+  'css/splash.css',
   'css/tokens.css',
   'css/base.css',
   'css/components.css',
@@ -48,6 +49,7 @@ const SHELL = [
   'js/map-config.js',
   'js/gps-filter.js',
   'js/guidance.js',
+  'js/splash.js',
   'js/motion.js',
   'js/views/gpsSheet.js',
   'js/views/voiceSheet.js',

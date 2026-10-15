@@ -42,7 +42,8 @@ async function ensureLeaflet() {
 
 async function start() {
   const app = document.getElementById('app');
-  if (!isFirebaseConfigured()) { renderSetup(app); return; }
+  const splashDone = () => { try { window.__splash?.done(); } catch { /* splash is cosmetic */ } };
+  if (!isFirebaseConfigured()) { renderSetup(app); splashDone(); return; }
   try {
     await ensureLeaflet();
     const { boot } = await import('./main.js');
@@ -51,6 +52,7 @@ async function start() {
     console.error(err);
     renderFatal(app, err);
   }
+  splashDone();   // the first screen is on the page: let the road widen into it
 }
 
 start();
