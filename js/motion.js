@@ -29,7 +29,7 @@ export class MotionTrack {
   }
 
   /** @returns {boolean} true if this report was newer than what we had */
-  setFix({ lat, lng, speed, heading, measuredAt }) {
+  setFix({ lat, lng, speed, heading, measuredAt, accuracy }) {
     const c = this.cfg;
     if (!this.base) {
       this.base = { lat, lng }; this.pos = { lat, lng }; this.measuredAt = measuredAt;
@@ -40,6 +40,21 @@ export class MotionTrack {
     if (measuredAt <= this.measuredAt) return false;
     const dt = (measuredAt - this.measuredAt) / 1000;
     const speedKnown = Number.isFinite(speed);
+
+    // Standing still: GPS noise moves a stopped rider 1 to 3 m on every fix. Hold the dot
+    // (and the heading) until the rider has clearly left the spot, instead of letting it tremble.
+    {
+      const mN = (lat - this.base.lat) * M_PER_DEG;
+      const mE = (lng - this.base.lng) * M_PER_DEG * Math.cos(toRad(lat));
+      const moved = Math.hypot(mE, mN);
+      const slow = speedKnown ? speed < Math.max(c.minSpeedMps, 1.5) : true;   // no device speed: the dead band alone decides
+      const band = Math.min(Math.max((Number.isFinite(accuracy) ? accuracy : 0) * 0.8, c.deadbandMinM ?? 4), c.deadbandMaxM ?? 12);
+      if (slow && moved < band) {
+        this.measuredAt = measuredAt;
+        this.vE = 0; this.vN = 0;
+        return true;
+      }
+    }
     if (speedKnown && speed < c.minSpeedMps) {
       this.vE = 0; this.vN = 0;                         // explicitly standing still
     } else if (speedKnown && Number.isFinite(heading)) {

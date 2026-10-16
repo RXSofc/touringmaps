@@ -175,7 +175,7 @@ export function touringView(roomId) {
           ageMs = Math.max(0, Date.now() - fix.timestamp);
           st = !isConnected() && state.sharing ? 'offline' : ageMs <= APP.freshness.liveMaxAgeMs ? 'live' : ageMs <= APP.freshness.staleMaxAgeMs ? 'stale' : 'lost';
           loc = { accuracy: fix.accuracy, speed: fix.speed, heading: fix.heading };
-          motion = { speed: fix.speed, heading: fix.heading, measuredAt: fix.timestamp };
+          motion = { speed: fix.speed, heading: fix.heading, accuracy: fix.accuracy, measuredAt: fix.timestamp };
         }
       } else {
         loc = state.locations[id] || null;
@@ -184,7 +184,7 @@ export function touringView(roomId) {
         if (loc) {
           lat = loc.latitude; lng = loc.longitude;
           // fixAt is server time; convert to this device's clock for smooth movement
-          motion = { speed: loc.speed, heading: loc.heading, measuredAt: Number.isFinite(loc.fixAt) ? loc.fixAt - serverOffset() : undefined };
+          motion = { speed: loc.speed, heading: loc.heading, accuracy: loc.accuracy, measuredAt: Number.isFinite(loc.fixAt) ? loc.fixAt - serverOffset() : undefined };
         }
       }
       const dist = state.destination && lat !== null
@@ -541,6 +541,8 @@ export function touringView(roomId) {
 
   /* ---------------------------------------------------------- actions */
   function onLocate() {
+    // second tap switches follow mode off again
+    if (state.following) { state.following = false; render(); return; }
     state.following = true;
     if (state.myFix) {
       map.panTo(state.myFix.latitude, state.myFix.longitude, MAP_CONFIG.view.followZoom);

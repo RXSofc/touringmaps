@@ -16,7 +16,7 @@ async () => {
     getSource(id){ return this.src[id]; } getLayer(){ return {}; } setLayoutProperty(id,k,v){ this.vis[id]=v; }
     jumpTo(o){ if(o.center) this.c={lng:o.center[0],lat:o.center[1]}; if(o.bearing!==undefined) this.b=o.bearing; if(o.zoom!==undefined) this.z=o.zoom; this.jumps=(this.jumps||0)+1; }
     easeTo(o){ this.ease=o; } flyTo(o){ this.fly=o; } fitBounds(b,o){ this.fit={b,o}; } setPadding(p){ this.pad=p; }
-    getCenter(){ return this.c; } getZoom(){ return this.z; } resize(){ this.resized=true; } remove(){ this.gone=true; } }
+    getCenter(){ return this.c; } getBearing(){ return this.b||0; } getZoom(){ return this.z; } resize(){ this.resized=true; } remove(){ this.gone=true; } }
   window.maplibregl = { Map, Marker, AttributionControl: class{} };
   const { TouringMap3D } = await import('/js/map3d.js');
   const { buildStyle } = await import('/js/map-style.js');
@@ -56,7 +56,7 @@ async () => {
   // follow: heading east -> bearing turns toward 90
   m.setFollow('a'); ok(inst.pad && inst.pad.top>100,'follow padding');
   await new Promise(r=>setTimeout(r,400));
-  ok(inst.jumps>3,'follow jumps camera'); ok(inst.b>0 && inst.b<=90,'bearing turns toward heading, got '+inst.b);
+  ok(inst.jumps>3 && inst.jumps<20,'follow jumps camera but throttled, got '+inst.jumps); ok(inst.b>0 && inst.b<=90,'bearing turns toward heading, got '+inst.b);
   const jumps=inst.jumps; m.setFollow(null); ok(inst.pad.top===0,'padding reset');
   // accuracy
   m.setAccuracy({latitude:-6.2,longitude:106.8,accuracy:25});

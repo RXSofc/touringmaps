@@ -30,7 +30,7 @@ export function isFirebaseConfigured() {
 
 export const APP = Object.freeze({
   name: 'VEXLANE',
-  version: '2026.10.16-4',   // shown on the sign-in screen so you can tell which build is running
+  version: '2026.10.16-6',   // shown on the sign-in screen so you can tell which build is running
 
   limits: Object.freeze({
     maxMembers: 6,              // enforced by database rules via six fixed slots
@@ -69,7 +69,9 @@ export const APP = Object.freeze({
       extrapolateMs: 2500,       // predict ahead at most this long after the last report
       easeMs: 280,               // how quickly the dot glides onto the prediction
       snapMeters: 120,           // bigger corrections jump instead of gliding
-      minSpeedMps: 1.0           // slower than this the dot is not moved by prediction
+      minSpeedMps: 1.0,          // slower than this the dot is not moved by prediction
+      deadbandMinM: 4,           // standing still: ignore position changes smaller than ~0.8 x accuracy…
+      deadbandMaxM: 12           // …but never more than this, clamped between these two
     })
   }),
 

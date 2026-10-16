@@ -122,6 +122,7 @@ export class TouringMap3D {
     this.previewMarker = null;
     this.routeVisible = true;
     this.lastSelf = null;
+    this.lastCam = 0;
     this.onVisible = () => { if (!document.hidden) this.kick(); };
     document.addEventListener('visibilitychange', this.onVisible);
 
@@ -250,7 +251,14 @@ export class TouringMap3D {
           const d = angleDiff(s.heading, this.bearing);
           this.bearing = norm360(this.bearing + d * 0.08);
         }
-        this.map.jumpTo({ center: [s.lng, s.lat], bearing: this.bearing });
+        // Every camera move re-renders the whole 3D scene. Only move when something actually
+        // changed, and at most ~30 times a second, so taps on the buttons stay responsive.
+        const c = this.map.getCenter();
+        const moved = Math.abs(c.lat - s.lat) > 2e-7 || Math.abs(c.lng - s.lng) > 2e-7 || Math.abs(angleDiff(this.bearing, this.map.getBearing())) > 0.15;
+        if (moved && now - this.lastCam >= 33) {
+          this.lastCam = now;
+          this.map.jumpTo({ center: [s.lng, s.lat], bearing: this.bearing });
+        }
       }
     }
     if (busy || this.followUid) this.kick();

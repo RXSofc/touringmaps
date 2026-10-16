@@ -12,7 +12,7 @@ const L = window.L;
 /** What the motion track needs from a rider record. */
 export function fixOf(r) {
   const f = r.fix || {};
-  return { lat: r.lat, lng: r.lng, speed: f.speed, heading: f.heading, measuredAt: Number.isFinite(f.measuredAt) ? f.measuredAt : Date.now() };
+  return { lat: r.lat, lng: r.lng, speed: f.speed, heading: f.heading, accuracy: f.accuracy, measuredAt: Number.isFinite(f.measuredAt) ? f.measuredAt : Date.now() };
 }
 
 export function riderSignature(r) {
