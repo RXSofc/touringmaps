@@ -130,6 +130,29 @@ export const MAP_CONFIG = Object.freeze({
     providers: TILE_PROVIDERS
   }),
 
+  // 3D mode (MapLibre GL). It needs VECTOR tiles in the OpenMapTiles schema; building heights
+  // come from the `building` layer. OpenFreeMap is free and key-less, but it is a community
+  // service with no SLA: for real traffic use your own provider (see docs/MAP-PROVIDERS.md).
+  vector: Object.freeze({
+    tilejson: 'https://tiles.openfreemap.org/planet',
+    glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
+    fontstack: 'Noto Sans Regular',
+    attribution: '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
+    maxZoom: 18,
+    pitch: 60,
+    maxPitch: 75,
+    buildingsMinZoom: 14,         // MapLibre zoom (one less than the same Leaflet zoom)
+    errorsBeforeFallback: 6,      // source errors before 3D gives up and returns to the flat map
+    library: Object.freeze({
+      version: '4.7.1',
+      sources: [
+        { js: 'vendor/maplibre-gl/maplibre-gl.js', css: 'vendor/maplibre-gl/maplibre-gl.css' },
+        { js: 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js', css: 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css' },
+        { js: 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js', css: 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css' }
+      ]
+    })
+  }),
+
   geocoder: Object.freeze({
     chain: ['nominatim', 'photon'],
     providers: GEOCODER_PROVIDERS,

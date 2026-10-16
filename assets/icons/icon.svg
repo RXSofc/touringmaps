@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="TouringTogether">
-  <rect width="512" height="512" fill="#C7F36B"/>
-  <rect x="24" y="24" width="464" height="464" fill="none" stroke="#171717" stroke-width="24"/>
-  <path d="M256 92c-70 0-124 52-124 118 0 80 124 196 124 196s124-116 124-196c0-66-54-118-124-118z" fill="#FF765E" stroke="#171717" stroke-width="24" stroke-linejoin="miter"/>
-  <circle cx="256" cy="208" r="44" fill="#FFFFFF" stroke="#171717" stroke-width="20"/>
-  <path d="M72 446h368" stroke="#171717" stroke-width="20" stroke-dasharray="48 32"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="VEXLANE">
+  <rect width="512" height="512" fill="#000000"/>
+  <!-- two lanes converging into one: the V of VEX -->
+  <path d="M56 76h120l80 236 80-236h120L316 448H196z" fill="#FFFFFF"/>
+  <!-- the lane marking running down the middle of the V -->
+  <path d="M256 96v48M256 176v48" stroke="#FFFFFF" stroke-width="22" stroke-linecap="butt"/>
 </svg>

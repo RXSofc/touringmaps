@@ -23,7 +23,7 @@ function shell(title, kicker, ...body) {
     h('header', { class: 'auth-hero' },
       h('div', { class: 'auth-hero__mark' }, icon('pin')),
       h('p', { class: 'tag' }, kicker),
-      h('h1', {}, 'Touring', h('br'), 'Together'),
+      h('h1', {}, 'VEX', h('br'), 'LANE'),
       h('p', { class: 'auth-hero__copy' }, 'Live positions, one shared destination and a Discord voice line for your riding group.')),
     h('section', { class: 'card auth-card', 'aria-labelledby': 'auth-title' },
       h('h2', { id: 'auth-title' }, title), ...body),

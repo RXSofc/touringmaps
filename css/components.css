@@ -315,7 +315,8 @@ button.chip--button:active { transform: translate(2px, 2px); }
   position: fixed;
   left: 0;
   right: 0;
-  top: calc(var(--safe-top) + var(--topbar-h) + 10px); /* below the top bar so status chips stay visible */
+  top: auto;
+  bottom: calc(var(--safe-bottom) + var(--toast-bottom, 94px)); /* just above the dock, clear of the map */
   z-index: var(--z-toast);
   display: grid;
   justify-items: center;
@@ -327,14 +328,14 @@ button.chip--button:active { transform: translate(2px, 2px); }
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  max-width: min(92vw, 460px);
-  padding: 0.6rem 0.8rem;
+  max-width: min(92vw, 420px);
+  padding: 0.4rem 0.7rem;
   background: var(--color-surface);
   border: var(--border-2);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   pointer-events: auto;
   animation: toast-in 0.14s ease-out;
 }
@@ -342,7 +343,7 @@ button.chip--button:active { transform: translate(2px, 2px); }
 .toast--error { border-style: dashed; border-width: 4px; }
 .toast--info { background: var(--color-surface); }
 .toast--warning { border-style: double; border-width: 5px; }
-@keyframes toast-in { from { transform: translateY(-8px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes toast-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ============ Sheets / dialogs ============ */
 .backdrop {
@@ -399,7 +400,7 @@ button.chip--button:active { transform: translate(2px, 2px); }
   min-width: 0;
 }
 .row:last-child { border-bottom: 0; }
-.row__main { flex: 1; min-width: 0; }
+.row__main { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); }   /* title over subtitle, each ellipsized (some rows build these as <span>) */
 .row__title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row__sub { font-size: 0.8125rem; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row--button { width: 100%; text-align: left; background: transparent; border: 0; border-bottom: 2px dotted var(--color-border); font: inherit; color: inherit; cursor: pointer; min-height: 56px; }

@@ -19,6 +19,7 @@ import { PositionFilter } from '../gps-filter.js';
 import { TurnGuide } from '../guidance.js';
 import { queryGeoPermission, watchGeoPermission, describePermission, PERMISSION_HELP, WakeLock } from '../permissions.js';
 import { TouringMap } from '../map.js';
+import { TouringMap3D, loadMapLibre, webglSupported } from '../map3d.js';
 import { RouteManager, fetchRoute, externalNavLinks } from '../routing.js';
 import { openDiscord, openExternal } from '../discord.js';
 import { VoiceChat, VOICE_SUPPORTED } from '../voice.js';
@@ -67,6 +68,7 @@ export function touringView(roomId) {
     ridersOpen: false,
     voiceMode: storage.get('tt.voiceMode') === 'toggle' ? 'toggle' : 'hold',   // hold the button, or tap to start/stop
     guidance: APP.guidance.enabled && storage.get('tt.guidance') !== '0',   // turn alerts (per device)
+    map3d: false,               // 3D (MapLibre) map active; remembered per device
     voiceMicHinted: false,
     backgroundGapMs: null,
     destNotice: null,           // {text}
@@ -117,8 +119,9 @@ export function touringView(roomId) {
     els.btnFit = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Fit all riders', title: 'Fit all riders', onclick: () => { state.following = false; map.fitAll(); render(); } }, icon('fit'));
     els.btnDest = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Go to destination', title: 'Go to destination', onclick: () => { state.following = false; if (!map.focusDestination()) toast('No destination set yet.', { type: 'info' }); } }, icon('flag'));
     els.btnRoute = h('button', { class: 'btn btn--icon', type: 'button', 'aria-pressed': 'true', 'aria-label': 'Show or hide route', title: 'Show or hide route', onclick: () => { state.routeVisible = !state.routeVisible; map.setRouteVisible(state.routeVisible); render(); } }, icon('route'));
+    els.btn3d = h('button', { class: 'btn btn--icon btn--3d', type: 'button', 'aria-pressed': 'false', 'aria-label': '3D map', title: '3D map (tilted, follows your direction)', onclick: () => setMapMode(!state.map3d) }, h('span', { class: 'btn3d__label' }, '3D'));
     els.btnLegend = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Map legend', title: 'Map legend', 'aria-expanded': 'false', onclick: () => { state.legendOpen = !state.legendOpen; render(); } }, icon('layers'));
-    els.controls = h('div', { class: 'map-controls' }, els.btnLocate, els.btnFit, els.btnDest, els.btnRoute, els.btnLegend);
+    els.controls = h('div', { class: 'map-controls' }, els.btnLocate, els.btnFit, els.btnDest, els.btnRoute, els.btn3d, els.btnLegend);
 
     els.legend = h('div', { class: 'legend panel', hidden: true },
       h('div', { class: 'legend__row' }, h('span', { class: 'dot dot--self' }), 'You'),
@@ -242,6 +245,7 @@ export function touringView(roomId) {
     els.btnLocate.setAttribute('aria-pressed', String(state.following));
     map.setFollow(state.following && state.myFix ? uid : null);
     els.btnRoute.setAttribute('aria-pressed', String(state.routeVisible));
+    els.btn3d.setAttribute('aria-pressed', String(state.map3d));
     els.btnLegend.setAttribute('aria-expanded', String(state.legendOpen));
     els.legend.hidden = !state.legendOpen;
 
@@ -393,7 +397,7 @@ export function touringView(roomId) {
       h('h2', {}, unsupported ? 'Location not available' : blocked ? 'Location is blocked' : 'Share your position with the group?'),
       unsupported || blocked
         ? h('p', {}, PERMISSION_HELP[unsupported ? state.perm : 'denied'])
-        : h('p', {}, 'TouringTogether needs your GPS position to show you on the map and let your group see where you are. Only members of this room can see it, and only while this screen is open. You can pause sharing anytime.'),
+        : h('p', {}, 'VEXLANE needs your GPS position to show you on the map and let your group see where you are. Only members of this room can see it, and only while this screen is open. You can pause sharing anytime.'),
       h('div', { class: 'btn-row' },
         !unsupported ? h('button', { class: 'btn btn--primary', type: 'button', onclick: () => startTracking(true) }, icon('locate'), blocked ? 'Try again' : 'Enable location') : null,
         h('button', { class: 'btn', type: 'button', onclick: () => { state.gateDismissed = true; render(); } }, 'Continue without sharing')));
@@ -817,6 +821,59 @@ export function touringView(roomId) {
     cleanupAll();
   }
 
+  /* ------------------------------------------------- 2D / 3D map */
+  function mapHandlers(mode) {
+    return {
+      onRiderClick: (id) => selectRider(id === state.selectedUid ? null : id),
+      onMapClick: (ll) => {
+        if (destPanel && destPanel.handleMapClick(ll)) return;
+        if (state.selectedUid) selectRider(null);
+      },
+      onUserPan: () => { if (state.following) { state.following = false; render(); } },
+      onTileError: () => {
+        if (mode === '3d') { toast('3D map could not load here. Back to the flat map.', { type: 'warning', timeout: 5000 }); setMapMode(false, { silent: true }); return; }
+        state.tileProblem = true; render();
+      }
+    };
+  }
+
+  function createMap(mode, view) {
+    return mode === '3d' ? new TouringMap3D(els.mapEl, mapHandlers('3d'), view) : new TouringMap(els.mapEl, mapHandlers('2d'));
+  }
+
+  /** Replays everything the old map was showing onto a fresh one. */
+  function replayMapState() {
+    map.setRoute(state.route?.route?.coords || null);
+    map.setOtherRoute(state.otherRoute?.route?.coords || null);
+    map.setRouteVisible(state.routeVisible);
+  }
+
+  let switching = false;
+  async function setMapMode(want, { silent = false } = {}) {
+    if (switching || destroyed || want === state.map3d) return;
+    if (destPanel) { if (!silent) toast('Close the destination panel first.', { type: 'info' }); return; }
+    switching = true;
+    try {
+      if (want) {
+        if (!webglSupported()) { toast('This phone cannot show the 3D map (no WebGL).', { type: 'warning' }); return; }
+        if (!silent) toast('Loading 3D map…', { type: 'info', timeout: 2500 });
+        try { await loadMapLibre(); } catch (e) { toast(e.message, { type: 'warning', timeout: 5000 }); return; }
+        if (destroyed) return;
+      }
+      const view = map?.getView?.();
+      map?.destroy();
+      const fresh = h('div', { class: `map${want ? ' map--3d' : ''}`, id: 'map', role: 'application', 'aria-label': 'Live map of your riding group' });
+      els.mapEl.replaceWith(fresh);
+      els.mapEl = fresh;
+      map = createMap(want ? '3d' : '2d', view);
+      state.map3d = want;
+      state.tileProblem = false;
+      storage.set('tt.map3d', want ? '1' : '0');
+      replayMapState();
+      render();
+    } finally { switching = false; }
+  }
+
   function cleanupAll() {
     for (const fn of cleanups.splice(0)) { try { fn(); } catch (e) { console.warn(e); } }
   }
@@ -829,16 +886,9 @@ export function touringView(roomId) {
       const layout = buildLayout();
       mountInto(root, layout);
 
-      map = new TouringMap(els.mapEl, {
-        onRiderClick: (id) => selectRider(id === state.selectedUid ? null : id),
-        onMapClick: (ll) => {
-          if (destPanel && destPanel.handleMapClick(ll)) return;
-          if (state.selectedUid) selectRider(null);
-        },
-        onUserPan: () => { if (state.following) { state.following = false; render(); } },
-        onTileError: () => { state.tileProblem = true; render(); }
-      });
+      map = createMap('2d');
       cleanups.push(() => map?.destroy());
+      if (storage.get('tt.map3d') === '1') setTimeout(() => { if (!destroyed) setMapMode(true, { silent: true }); }, 0);
 
       routeManager = new RouteManager({
         onChange: (rs) => {

@@ -98,16 +98,25 @@ export function icon(name, { label } = {}) {
 
 /* ------------------------------------------------------------- Toasts */
 
-export function toast(message, { type = 'info', timeout = 4200, action } = {}) {
+export function toast(message, { type = 'info', timeout, action } = {}) {
   const host = document.getElementById('toasts');
   if (!host) return () => {};
+  if (timeout === undefined) timeout = type === 'info' || type === 'success' ? 2600 : 4200;
+  // Sit just above the dock so the map stays clear; fall back to a fixed offset.
+  const dock = document.querySelector('.dock');
+  const dockH = dock ? Math.round(dock.getBoundingClientRect().height) : 0;
+  host.style.setProperty('--toast-bottom', `${(dockH || 84) + 10}px`);
+  // The same message again replaces the old one instead of stacking.
+  for (const old of [...host.children]) if (old.dataset.msg === String(message)) old.remove();
   const el = h('div', { class: `toast toast--${type}`, role: type === 'error' ? 'alert' : 'status' },
     h('span', {}, message),
     action ? h('button', { type: 'button', class: 'btn btn--sm', onclick: () => { action.onClick(); dismiss(); } }, action.label) : null
   );
   const dismiss = () => el.remove();
+  el.dataset.msg = String(message);
+  if (!action) el.addEventListener('click', dismiss);
   host.append(el);
-  while (host.children.length > 3) host.firstChild.remove();
+  while (host.children.length > 2) host.firstChild.remove();
   if (timeout > 0) setTimeout(dismiss, timeout);
   return dismiss;
 }

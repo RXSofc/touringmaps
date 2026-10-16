@@ -1,4 +1,4 @@
-# TouringTogether
+# VEXLANE
 
 Private, real-time coordination for motorcycle touring groups of 2–6 riders: live positions on a shared map, one shared destination, a route from each rider's own position, in-app push-to-talk voice, and a Discord backup button.
 
@@ -119,3 +119,7 @@ Popup + vibration before turns, roundabouts and arrival, no sound, toll roads av
 Room menu → **Voice diagnostics** shows, live: signalling transport, TURN status, mic state, whether audio playback is blocked, and for every audio connection its state, the network path chosen (host / srflx / relay), packets sent or received and an event log. **Copy report** puts it on the clipboard. Take one report from each phone right after trying to talk.
 
 Reading it: `path: relay` means TURN is carrying the audio; no `srflx` candidates means the phone's network blocks STUN; a SEND connection stuck in `connecting`/`failed` while the other phone shows no RECEIVE means the direct path is blocked (add TURN in `APP.voice.iceServers`).
+
+## 3D map
+
+Tap **3D** in the map buttons for a tilted map with 3D buildings that turns with your direction while you follow yourself. Flat map is the default. Details and how to change the tile source: `docs/MAP-PROVIDERS.md`.

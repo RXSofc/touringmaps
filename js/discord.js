@@ -1,6 +1,6 @@
 /**
  * Discord voice integration = a validated link that opens in Discord (or the
- * browser). TouringTogether never sees Discord credentials or tokens and does
+ * browser). VEXLANE never sees Discord credentials or tokens and does
  * not embed Discord. Joining a specific voice channel, push-to-talk and mute
  * are controlled entirely by Discord.
  */

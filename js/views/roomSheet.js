@@ -20,7 +20,7 @@ export function openRoomSheet({ getState, actions, onClose }) {
   function render() {
     const s = getState();
     const code = s.meta.inviteCode;
-    const shareText = `Join my TouringTogether ride "${s.meta.name}" with code ${fmtCode(code || '')}`;
+    const shareText = `Join my VEXLANE ride "${s.meta.name}" with code ${fmtCode(code || '')}`;
     const members = Object.entries(s.members).sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0));
 
     /* ---- invite ---- */
@@ -31,7 +31,7 @@ export function openRoomSheet({ getState, actions, onClose }) {
       h('p', { class: 'muted small' }, `${s.memberCount} of ${APP.limits.maxMembers} riders. Anyone with this code can join until the room is full or you issue a new code.`),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn btn--primary', type: 'button', disabled: !code, onclick: async () => toast(await copyText(shareText) ? 'Invitation copied.' : 'Could not copy.', { type: 'info' }) }, icon('copy'), 'Copy invitation'),
-        navigator.share ? h('button', { class: 'btn', type: 'button', disabled: !code, onclick: () => navigator.share({ title: 'TouringTogether', text: shareText }).catch(() => {}) }, icon('share'), 'Share') : null));
+        navigator.share ? h('button', { class: 'btn', type: 'button', disabled: !code, onclick: () => navigator.share({ title: 'VEXLANE', text: shareText }).catch(() => {}) }, icon('share'), 'Share') : null));
 
     /* ---- riders ---- */
     const riders = h('section', { class: 'sheet__section' },

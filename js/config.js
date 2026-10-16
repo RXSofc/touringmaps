@@ -1,5 +1,5 @@
 /**
- * TouringTogether configuration.
+ * VEXLANE configuration.
  *
  * 1. Replace the Firebase placeholders with your own project's web config
  *    (Firebase console → Project settings → Your apps → Web app).
@@ -29,8 +29,8 @@ export function isFirebaseConfigured() {
 }
 
 export const APP = Object.freeze({
-  name: 'TouringTogether',
-  version: '2026.10.15-3',   // shown on the sign-in screen so you can tell which build is running
+  name: 'VEXLANE',
+  version: '2026.10.16-4',   // shown on the sign-in screen so you can tell which build is running
 
   limits: Object.freeze({
     maxMembers: 6,              // enforced by database rules via six fixed slots

@@ -48,11 +48,16 @@
 
 /* short landscape screens: reclaim vertical space for the map */
 @media (max-height: 480px) and (orientation: landscape) {
-  .topbar { min-height: 44px; padding-top: calc(4px + var(--safe-top)); padding-bottom: 4px; }
+  .touring { --hud-top: calc(var(--safe-top) + 48px); }
+  .topbar { padding-top: 4px; }
   .topbar__chips { flex-direction: row; }
   .dock { grid-template-columns: 1fr 1fr; padding-top: 4px; padding-bottom: calc(4px + var(--safe-bottom)); }
   .btn { min-height: 40px; }
   .rider-panel, .rider-card { max-height: 80%; }
+  .dock__row { gap: 6px; }
+  .dock__row .btn--icon { width: 40px; }
+  .dock__talk { font-size: 0.68rem; letter-spacing: 0; padding-left: 0.4rem; padding-right: 0.4rem; }
+  .dock__talk .talk__label { overflow: visible; }
 }
 
 /* very narrow phones: keep the whole dock on one line, talk button included */
@@ -61,4 +66,13 @@
   .dock__row .btn { padding-left: 0.5rem; padding-right: 0.5rem; }
   .dock__row .btn--icon { width: 44px; }
   .dock__talk { font-size: 0.74rem; letter-spacing: 0; gap: 0.35rem; }
+}
+
+/* short screens (landscape, split-screen, large system font): the map buttons form two compact
+   columns so none of them hides behind the dock, and banners/legend make room for the second column */
+@media (max-height: 700px) {
+  .map-controls { grid-auto-flow: column; grid-template-rows: repeat(3, auto); gap: 6px; }
+  .map-controls .btn--icon { width: 44px; min-height: 44px; }
+  .alerts { right: 112px; }
+  .legend { right: 112px; }
 }

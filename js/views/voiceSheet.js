@@ -21,7 +21,7 @@ function pcLines(c, dir) {
 
 export function reportText(d, ctx) {
   const out = [
-    `TouringTogether voice report (${ctx.version})`,
+    `VEXLANE voice report (${ctx.version})`,
     `device: ${navigator.userAgent}`,
     `network: ${navigator.connection ? `${navigator.connection.effectiveType || '?'} / type ${navigator.connection.type || '?'}` : 'unknown'}, online ${yn(navigator.onLine)}`,
     `signalling: ${d.signalling}   TURN: ${d.turn}`,

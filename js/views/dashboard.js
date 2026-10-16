@@ -42,7 +42,7 @@ export function dashboardView() {
 
       mountInto(root, h('div', { class: 'page' },
         h('header', { class: 'page__head' },
-          h('div', { class: 'page__brand' }, icon('pin'), h('span', {}, 'TouringTogether')),
+          h('div', { class: 'page__brand' }, icon('pin'), h('span', {}, 'VEXLANE')),
           h('div', { class: 'page__actions' },
             connChip,
             h('a', { class: 'btn btn--sm', href: '#/profile', 'aria-label': 'Profile and account' }, icon('user'), h('span', { class: 'hide-sm' }, 'Profile')),

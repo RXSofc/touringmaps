@@ -1,4 +1,4 @@
-/* TouringTogether service worker.
+/* VEXLANE service worker.
  *
  * Purpose: fast start and a usable app shell when the connection drops.
  * It does NOT make live features work offline: GPS sharing, rooms, routing
@@ -11,7 +11,7 @@
  *
  * Bump VERSION when you want to drop old caches.
  */
-const VERSION = 'tt-v14';
+const VERSION = 'tt-v22';
 const SHELL_CACHE = `${VERSION}-shell`;
 const SDK_CACHE = `${VERSION}-sdk`;
 
@@ -43,6 +43,8 @@ const SHELL = [
   'js/location.js',
   'js/permissions.js',
   'js/map.js',
+  'js/map3d.js',
+  'js/map-style.js',
   'js/destinations.js',
   'js/routing.js',
   'js/discord.js',

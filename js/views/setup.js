@@ -5,7 +5,7 @@ export function renderSetup(root) {
     h('div', { class: 'card setup-card' },
       h('span', { class: 'tag' }, 'Setup needed'),
       h('h1', {}, 'Connect Firebase'),
-      h('p', {}, 'TouringTogether is installed, but js/config.js still contains placeholder Firebase settings.'),
+      h('p', {}, 'VEXLANE is installed, but js/config.js still contains placeholder Firebase settings.'),
       h('ol', { class: 'steps' },
         h('li', {}, 'Create a Firebase project and enable Email/Password sign-in.'),
         h('li', {}, 'Create a Realtime Database and paste firebase/database.rules.json into its Rules tab.'),

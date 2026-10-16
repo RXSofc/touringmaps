@@ -1,4 +1,4 @@
-/* Design tokens: TouringTogether Neo-Brutalist system */
+/* Design tokens: VEXLANE Neo-Brutalist system */
 :root {
   /* Palette: black, white, and red. Red is ONLY for cancel / back / close (X) buttons.
      Every other state (active, live, warning, error, disabled) is told apart by

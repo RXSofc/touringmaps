@@ -96,26 +96,43 @@
   position: fixed;
   inset: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;      /* map + dock: the old top bar is gone, the map goes edge to edge */
+  --hud-top: calc(var(--safe-top) + 58px);       /* where map overlays start, just below the floating header */
   height: 100vh;
   height: 100dvh;
   background: var(--color-bg);
 }
+/* Floating header: three small pieces laid over the map instead of a full-width bar.
+   The gaps between them stay clickable/draggable map. */
 .topbar {
+  position: absolute;
+  top: var(--safe-top);
+  left: 0;
+  right: 0;
+  z-index: calc(var(--z-map-overlay) + 2);
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: var(--topbar-h);
-  padding: calc(var(--space-2) + var(--safe-top)) calc(var(--space-3) + var(--safe-right)) var(--space-2) calc(var(--space-3) + var(--safe-left));
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  border-bottom: var(--border-2);
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) calc(var(--space-2) + var(--safe-right)) 0 calc(var(--space-2) + var(--safe-left));
+  pointer-events: none;
 }
+.topbar > * { pointer-events: auto; }
 .topbar__back { flex: none; }
-.topbar__title { flex: 1; min-width: 0; line-height: 1.15; }
-.topbar__name { font: 700 1.05rem var(--font-display); text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.topbar__sub { font-size: 0.72rem; color: inherit; text-transform: uppercase; letter-spacing: 0.04em; }
-.topbar__chips { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex: none; }
+.topbar__title {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(58%, 340px);
+  padding: 3px 10px 4px;
+  line-height: 1.15;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: var(--border-2);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+.topbar__name { font: 700 0.95rem var(--font-display); text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar__sub { font-size: 0.68rem; color: inherit; text-transform: uppercase; letter-spacing: 0.04em; }
+.topbar__chips { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex: none; margin-left: auto; }
 
 .map-wrap { position: relative; min-height: 0; overflow: hidden; }
 .map { position: absolute; inset: 0; z-index: 0; isolation: isolate; background: var(--color-muted); }
@@ -128,7 +145,7 @@
   position: absolute;
   left: var(--space-2);
   right: 64px;
-  top: var(--space-2);
+  top: var(--hud-top);
   z-index: var(--z-map-overlay);
   display: grid;
   gap: 6px;
@@ -141,18 +158,22 @@
 .map-controls {
   position: absolute;
   right: var(--space-2);
-  top: 64px;
+  top: var(--hud-top);
   z-index: var(--z-map-overlay);
   display: grid;
   gap: var(--space-2);
+  max-height: calc(100% - var(--hud-top) - 8px);
+  overflow-y: auto;
+  scrollbar-width: none;
 }
+.map-controls::-webkit-scrollbar { display: none; }
 .map-controls .btn { box-shadow: var(--shadow-sm); }
 .leaflet-top.leaflet-right { z-index: 5; }
 
 .legend {
   position: absolute;
   right: 64px;
-  top: 64px;
+  top: var(--hud-top);
   z-index: var(--z-map-overlay);
   display: grid;
   gap: 6px;
@@ -179,6 +200,7 @@
 .rider-card { display: grid; gap: var(--space-3); }
 .rider-card__head { margin: 0; }
 .rider-card__head .row__main { display: grid; gap: 2px; }
+.rider-panel { overflow-x: hidden; }
 .rider-panel .row--button { padding: 0.5rem 0.25rem; }
 .rider-panel .row--button.is-selected { background: var(--color-primary); color: var(--color-on-primary); }
 .rider-panel .chip { flex: none; }
@@ -311,3 +333,15 @@
 .leaflet-tile-pane { filter: grayscale(1) contrast(1.1); }
 .leaflet-container a { color: var(--color-text); }
 .topbar .chip { background: var(--color-white); color: var(--color-black); }
+
+/* ============ 3D map (MapLibre) ============ */
+.map.map--3d { position: absolute; inset: 0; background: var(--color-white); } /* beats maplibre-gl.css (.maplibregl-map { position: relative }), which would collapse the box to 0 height */
+.map--3d .maplibregl-canvas-container, .map--3d .maplibregl-canvas { width: 100%; height: 100%; }
+.map--3d .maplibregl-canvas { outline: none; }
+.ml-marker { background: transparent; cursor: pointer; }
+.btn--3d { font-family: var(--font-mono); font-weight: 800; font-size: 0.95rem; letter-spacing: 0.02em; }
+.btn3d__label { line-height: 1; }
+.maplibregl-ctrl-attrib { font-family: var(--font-body); font-size: 10px; background: var(--color-white) !important; border: 2px solid var(--color-black); border-radius: 0 !important; }
+.maplibregl-ctrl-attrib a { color: var(--color-text) !important; }
+.maplibregl-ctrl-attrib-button { background-color: var(--color-white) !important; }
+.maplibregl-ctrl-bottom-right { z-index: 2; }

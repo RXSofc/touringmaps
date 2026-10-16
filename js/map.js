@@ -10,16 +10,16 @@ import { MotionTrack } from './motion.js';
 const L = window.L;
 
 /** What the motion track needs from a rider record. */
-function fixOf(r) {
+export function fixOf(r) {
   const f = r.fix || {};
   return { lat: r.lat, lng: r.lng, speed: f.speed, heading: f.heading, measuredAt: Number.isFinite(f.measuredAt) ? f.measuredAt : Date.now() };
 }
 
-function riderSignature(r) {
+export function riderSignature(r) {
   return [r.name, r.avatar, r.state, r.isSelf, r.selected, r.talking, r.state === 'live' ? '' : formatAge(r.ageMs)].join('|');
 }
 
-function buildRiderEl(r) {
+export function buildRiderEl(r) {
   const fallback = defaultAvatar(r.name, r.uid);
   const img = h('img', { class: 'rider-marker__avatar', alt: '', width: 46, height: 46, referrerpolicy: 'no-referrer', decoding: 'async' });
   img.addEventListener('error', () => { if (img.src !== fallback) img.src = fallback; }, { once: true });
@@ -35,7 +35,7 @@ function buildRiderEl(r) {
   );
 }
 
-function destinationEl(preview) {
+export function destinationEl(preview) {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('viewBox', '0 0 64 64');
@@ -56,6 +56,7 @@ export class TouringMap {
    */
   constructor(container, handlers = {}) {
     if (!L) throw new Error('Leaflet is not loaded.');
+    this.kind = 'leaflet';
     this.handlers = handlers;
     this.riders = new Map();       // uid -> {marker, sig, data, track}
     this.raf = null;
@@ -292,6 +293,10 @@ export class TouringMap {
   }
 
   invalidate() { this.map.invalidateSize({ animate: false }); }
+
+  /** Where the camera is, in Leaflet zoom units (shared with the 3D map so a switch keeps the view). */
+  getView() { const c = this.map.getCenter(); return { lat: c.lat, lng: c.lng, zoom: this.map.getZoom() }; }
+  setView(v) { if (v) this.map.setView([v.lat, v.lng], v.zoom, { animate: false }); }
 
   destroy() {
     if (this.raf) cancelAnimationFrame(this.raf);

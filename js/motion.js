@@ -87,6 +87,8 @@ export class MotionTrack {
       this.pos = { lat: this.pos.lat + (tLat - this.pos.lat) * a, lng: this.pos.lng + (tLng - this.pos.lng) * a };
     }
     const moving = (this.vE !== 0 || this.vN !== 0) && ageMs < c.extrapolateMs;
-    return { lat: this.pos.lat, lng: this.pos.lng, settled: !moving && err < 0.2 };
+    const speed = Math.hypot(this.vE, this.vN);
+    const heading = moving && speed > 0 ? (Math.atan2(this.vE, this.vN) * 180 / Math.PI + 360) % 360 : null;   // degrees clockwise from north
+    return { lat: this.pos.lat, lng: this.pos.lng, heading, speed: moving ? speed : 0, settled: !moving && err < 0.2 };
   }
 }

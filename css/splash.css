@@ -1,6 +1,6 @@
 /* Launch splash. Black, white only. Paint-critical: loaded before every other stylesheet.
    Concept: three riders arrive from different directions, their routes draw themselves and
-   merge into one road. The road is the loading indicator, then widens to become the page. */
+   merge into one lane (VEXLANE). The lane is the loading indicator, then widens to become the page. */
 #splash {
   --sp-y: 57vh;                         /* where the routes meet (set from JS, follows the SVG) */
   position: fixed;
@@ -20,7 +20,7 @@
 .sp-head rect.i { fill: #000; }
 .sp-head path { stroke: #fff; stroke-width: 2; fill: none; }
 
-/* wordmark: two lines, every letter slams up from under a hard clip edge */
+/* wordmark: one line, every letter slams up from under a hard clip edge */
 .sp-stage {
   position: absolute;
   left: 0; right: 0;
@@ -28,7 +28,7 @@
   transform: translateY(-100%);
   padding: 0 6vw 22px;
   text-align: center;
-  font: 900 clamp(2rem, 14.5vw, 5.5rem)/0.9 'Arial Black', system-ui, sans-serif;
+  font: 900 clamp(2rem, 15.5vw, 5.8rem)/0.9 'Arial Black', system-ui, sans-serif;
   letter-spacing: -0.045em;
   text-transform: uppercase;
 }

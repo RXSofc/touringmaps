@@ -78,3 +78,14 @@ Same steps; `GEOCODER_PROVIDERS.locationiq.apiKey`, then `geocoder.chain: ['loca
 
 ## Toll roads
 Routing requests use `exclude=toll` and the result is scanned for toll/motorway classes (`routing.avoid`, `routing.blockClasses` in js/map-config.js). Details and limits: [GUIDANCE.md](GUIDANCE.md).
+
+## 3D map (MapLibre GL)
+
+The **3D** button in the map controls switches from the flat Leaflet map to a tilted
+MapLibre map with extruded buildings. The flat map stays the default; the choice is remembered per device.
+
+- Library: loaded on first use from `vendor/maplibre-gl/` if you put the files there, otherwise from jsDelivr/unpkg (version pinned in `js/map-config.js`).
+- Tiles: **vector** tiles in the OpenMapTiles schema. Default is OpenFreeMap (free, no key, community service, no SLA). Change `MAP_CONFIG.vector` (`tilejson`, `glyphs`, `fontstack`, `attribution`) to move to your own provider. The style itself is in `js/map-style.js` and is black and white only.
+- While following yourself the camera turns to your direction of travel (heading-up). Dragging the map stops following.
+- If WebGL is missing, the library cannot load, or the vector tiles keep failing, the app returns to the flat map by itself.
+- Not tested against the real library or real tile servers from the build sandbox: check on a device.
