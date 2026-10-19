@@ -11,7 +11,7 @@ import { getUser, onBeforeLogout } from '../auth.js';
 import { ensureProfile } from '../profile.js';
 import {
   subscribeRoom, saveDestination, clearDestination, updateRoomSettings, setRoomStatus, deleteRoom,
-  rotateInvite, removeMember, allowRejoin, leaveRoom, setCurrentRoom, forgetRoomEntry
+  rotateInvite, roomCapacity, removeMember, allowRejoin, leaveRoom, setCurrentRoom, forgetRoomEntry
 } from '../rooms.js';
 import { startRoomPresence, riderStatus, serverNow, serverOffset, onConnectionChange, isConnected } from '../presence.js';
 import { LocationTracker, LocationPublisher } from '../location.js';
@@ -21,6 +21,10 @@ import { queryGeoPermission, watchGeoPermission, describePermission, PERMISSION_
 import { TouringMap } from '../map.js';
 import { TouringMap3D, loadMapLibre, webglSupported } from '../map3d.js';
 import { RouteManager, fetchRoute, externalNavLinks } from '../routing.js';
+import { RegionWatch } from '../regionwatch.js';
+import { reverseRegion } from '../destinations.js';
+import { fetchWeather, weatherLine } from '../weather.js';
+import { regionName } from '../region.js';
 import { openDiscord, openExternal } from '../discord.js';
 import { VoiceChat, VOICE_SUPPORTED } from '../voice.js';
 import { haversine } from '../geo.js';
@@ -57,6 +61,7 @@ export function touringView(roomId) {
     tracking: false,
     sharing: storage.get(`tt.sharing.${roomId}`) !== '0',
     keepAwake: storage.get('tt.keepAwake') === '1',
+    regionAlerts: storage.get('tt.region') !== '0',
     publishNote: null,          // why my position is not being shared right now
     online: true,
     selectedUid: null,
@@ -69,6 +74,7 @@ export function touringView(roomId) {
     voiceMode: storage.get('tt.voiceMode') === 'toggle' ? 'toggle' : 'hold',   // hold the button, or tap to start/stop
     guidance: APP.guidance.enabled && storage.get('tt.guidance') !== '0',   // turn alerts (per device)
     map3d: false,               // 3D (MapLibre) map active; remembered per device
+    terrain: storage.get('tt.terrain') === '1',   // hills and mountains on the 3D map
     voiceMicHinted: false,
     backgroundGapMs: null,
     destNotice: null,           // {text}
@@ -90,6 +96,9 @@ export function touringView(roomId) {
   let routeManager = null;
   let guide = null;
   let lastGuidedRoute = null;
+  let lastDrawnRoute = null;
+  let lastTollWarned = null;
+  let regionWatch = null;
   let destPanel = null;
   let roomSheet = null;
   let wakeLock = null;
@@ -120,8 +129,9 @@ export function touringView(roomId) {
     els.btnDest = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Go to destination', title: 'Go to destination', onclick: () => { state.following = false; if (!map.focusDestination()) toast('No destination set yet.', { type: 'info' }); } }, icon('flag'));
     els.btnRoute = h('button', { class: 'btn btn--icon', type: 'button', 'aria-pressed': 'true', 'aria-label': 'Show or hide route', title: 'Show or hide route', onclick: () => { state.routeVisible = !state.routeVisible; map.setRouteVisible(state.routeVisible); render(); } }, icon('route'));
     els.btn3d = h('button', { class: 'btn btn--icon btn--3d', type: 'button', 'aria-pressed': 'false', 'aria-label': '3D map', title: '3D map (tilted, follows your direction)', onclick: () => setMapMode(!state.map3d) }, h('span', { class: 'btn3d__label' }, '3D'));
+    els.btnTerrain = h('button', { class: 'btn btn--icon btn--3d', type: 'button', hidden: true, 'aria-pressed': 'false', 'aria-label': 'Hills and mountains', title: 'Hills and mountains (3D map)', onclick: onToggleTerrain }, h('span', { class: 'btn3d__label btn3d__label--sm' }, 'HILL'));
     els.btnLegend = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Map legend', title: 'Map legend', 'aria-expanded': 'false', onclick: () => { state.legendOpen = !state.legendOpen; render(); } }, icon('layers'));
-    els.controls = h('div', { class: 'map-controls' }, els.btnLocate, els.btnFit, els.btnDest, els.btnRoute, els.btn3d, els.btnLegend);
+    els.controls = h('div', { class: 'map-controls' }, els.btnLocate, els.btnFit, els.btnDest, els.btnRoute, els.btn3d, els.btnTerrain, els.btnLegend);
 
     els.legend = h('div', { class: 'legend panel', hidden: true },
       h('div', { class: 'legend__row' }, h('span', { class: 'dot dot--self' }), 'You'),
@@ -224,7 +234,7 @@ export function touringView(roomId) {
 
     // topbar
     els.name.textContent = state.meta.name || 'Room';
-    els.sub.textContent = `${memberCount()}/${APP.limits.maxMembers} riders${state.meta.status === 'closed' ? ' · CLOSED' : ''}`;
+    els.sub.textContent = `${memberCount()}/${roomCapacity(state.meta)} riders${state.meta.status === 'closed' ? ' · CLOSED' : ''}`;
     const up = isConnected();
     els.connChip.className = `chip ${up ? 'chip--success' : 'chip--warning'}`;
     mountInto(els.connChip, h('span', { class: `dot ${up ? 'dot--live' : 'dot--stale'}` }), up ? 'Online' : 'Offline');
@@ -246,6 +256,8 @@ export function touringView(roomId) {
     map.setFollow(state.following && state.myFix ? uid : null);
     els.btnRoute.setAttribute('aria-pressed', String(state.routeVisible));
     els.btn3d.setAttribute('aria-pressed', String(state.map3d));
+    els.btnTerrain.hidden = !state.map3d;
+    els.btnTerrain.setAttribute('aria-pressed', String(state.terrain));
     els.btnLegend.setAttribute('aria-expanded', String(state.legendOpen));
     els.legend.hidden = !state.legendOpen;
 
@@ -278,7 +290,7 @@ export function touringView(roomId) {
       dismissible ? h('button', { class: 'btn btn--icon btn--sm btn--ghost btn--cancel', type: 'button', 'aria-label': 'Dismiss', onclick: () => { state.dismissed.add(key); render(); } }, icon('close')) : null);
   }
 
-  const VIBRATION = { far: [120], near: [120, 80, 120], now: [300], arrive: [200, 100, 200], offroute: [80, 60, 80, 60, 80] };
+  const VIBRATION = { far: [120], near: [120, 80, 120], now: [300], arrive: [200, 100, 200], offroute: [80, 60, 80, 60, 80], toll: [400, 120, 400, 120, 400] };
   function vibrate(kind) {
     if (!APP.guidance.vibrate || !state.guidance) return;
     try { if (typeof navigator.vibrate === 'function') navigator.vibrate(VIBRATION[kind]); } catch { /* not supported in this WebView */ }
@@ -298,7 +310,7 @@ export function touringView(roomId) {
     if (!v) return null;
     if (v.kind === 'offroute') {
       return h('div', { class: 'navcard navcard--offroute', role: 'status' }, icon('refresh'),
-        h('div', { class: 'navcard__body' }, h('strong', { class: 'navcard__title' }, 'Keluar jalur'), h('span', { class: 'navcard__detail' }, 'Menghitung ulang rute…')));
+        h('div', { class: 'navcard__body' }, h('strong', { class: 'navcard__title' }, 'Keluar jalur'), h('span', { class: 'navcard__detail' }, state.route?.error && state.route?.rerouting ? 'Sinyal lemah, mencoba lagi…' : 'Menghitung ulang rute…')));
     }
     return h('div', { class: `navcard navcard--${v.stage}${v.kind === 'arrive' ? ' navcard--arrive' : ''}`, role: 'status', 'aria-live': 'polite' },
       h('div', { class: 'navcard__icon' }, icon(v.icon)),
@@ -412,7 +424,7 @@ export function touringView(roomId) {
       else if (rs.status === 'loading' && !rs.route) summary = 'Calculating route…';
       else if (rs.status === 'error' && !rs.route) summary = rs.error?.message || 'Route unavailable';
       else if (rs.route) {
-        summary = `${formatDistance(rs.route.distanceMeters)} · ~${formatDuration(rs.route.durationSeconds)}*${rs.route.isFallback ? ` · via ${rs.route.providerLabel}` : ''}${rs.status === 'loading' ? ' · updating…' : rs.status === 'error' ? ' · refresh failed' : ''}`;
+        summary = `${formatDistance(rs.route.distanceMeters)} · ~${formatDuration(rs.route.durationSeconds)}*${rs.route.isFallback ? ` · via ${rs.route.providerLabel}` : ''}${rs.rerouting ? ' · rerouting…' : rs.status === 'loading' ? ' · updating…' : rs.status === 'error' ? ' · refresh failed' : ''}`;
       }
     }
     mountInto(els.destBtn,
@@ -645,7 +657,8 @@ export function touringView(roomId) {
       getState: () => ({
         uid, isOwner: isOwner(), meta: state.meta, members: state.members, banned: state.banned,
         settings: state.settings, memberCount: memberCount(), keepAwake: state.keepAwake, voiceMode: state.voiceMode, voiceSupported: VOICE_SUPPORTED && APP.voice.enabled,
-        guidance: state.guidance, guidanceSupported: APP.guidance.enabled
+        guidance: state.guidance, guidanceSupported: APP.guidance.enabled,
+        regionAlerts: state.regionAlerts, regionSupported: APP.region.enabled
       }),
       actions: {
         removeMember: async (targetUid, m) => { try { await removeMember(roomId, targetUid, m); toast(`${m.displayName} was removed.`, { type: 'info' }); } catch (e) { toast(e.message, { type: 'error' }); } },
@@ -653,7 +666,7 @@ export function touringView(roomId) {
         saveDiscord: (value) => updateRoomSettings(roomId, { discordInviteUrl: value }),
         setPolicy: async (policy) => { try { await updateRoomSettings(roomId, { destinationPolicy: policy }); } catch (e) { toast(e.message, { type: 'error' }); } },
         rotateInvite: async () => {
-          try { await rotateInvite(roomId, { oldHash: state.meta.inviteCodeHash, roomName: state.meta.name, status: state.meta.status, uid }); toast('New invite code issued.', { type: 'success' }); }
+          try { await rotateInvite(roomId, { oldHash: state.meta.inviteCodeHash, roomName: state.meta.name, status: state.meta.status, uid, capacity: roomCapacity(state.meta) }); toast('New invite code issued.', { type: 'success' }); }
           catch (e) { toast(e.message, { type: 'error' }); }
         },
         setStatus: async (status) => { try { await setRoomStatus(roomId, state.meta.inviteCodeHash, status); toast(status === 'closed' ? 'Room closed.' : 'Room reopened.', { type: 'success' }); } catch (e) { toast(e.message, { type: 'error' }); } },
@@ -676,6 +689,7 @@ export function touringView(roomId) {
         setVoiceMode: (mode) => { state.voiceMode = mode === 'toggle' ? 'toggle' : 'hold'; storage.set('tt.voiceMode', state.voiceMode); if (voice?.holding) endTalk(); render(); },
         openVoiceDiag: () => { if (voiceSheet) return; voiceSheet = openVoiceSheet({ voice, getContext: () => ({ version: APP.version }), onClose: () => { voiceSheet = null; } }); },
         setGuidance: (on) => { state.guidance = !!on; storage.set('tt.guidance', on ? '1' : '0'); render(); },
+        setRegionAlerts: (on) => { state.regionAlerts = !!on; storage.set('tt.region', on ? '1' : '0'); if (!on) regionWatch?.reset(); },
         setKeepAwake: async (on) => {
           state.keepAwake = on;
           storage.set('tt.keepAwake', on ? '1' : '0');
@@ -754,6 +768,7 @@ export function touringView(roomId) {
     if (state.perm !== 'granted') state.perm = 'granted';
     if (state.backgroundGapMs) state.backgroundGapMs = null;
     if (state.guidance) guide?.update(fix);
+    if (state.regionAlerts) regionWatch?.update(fix, state.route?.route?.coords || null);
     routeManager.updateOrigin(fix);
     publishLatest();
     render();
@@ -832,6 +847,11 @@ export function touringView(roomId) {
         if (state.selectedUid) selectRider(null);
       },
       onUserPan: () => { if (state.following) { state.following = false; render(); } },
+      onTerrainError: () => {
+        state.terrain = false; storage.set('tt.terrain', '0');
+        toast('Hills could not load here, so they are off. The 3D map still works.', { type: 'warning', timeout: 5000 });
+        render();
+      },
       onTileError: () => {
         if (mode === '3d') { toast('3D map could not load here. Back to the flat map.', { type: 'warning', timeout: 5000 }); setMapMode(false, { silent: true }); return; }
         state.tileProblem = true; render();
@@ -845,9 +865,20 @@ export function touringView(roomId) {
 
   /** Replays everything the old map was showing onto a fresh one. */
   function replayMapState() {
+    lastDrawnRoute = state.route?.route || null;
     map.setRoute(state.route?.route?.coords || null);
     map.setOtherRoute(state.otherRoute?.route?.coords || null);
     map.setRouteVisible(state.routeVisible);
+    map.setRouteDim(!!state.route?.rerouting || !!state.route?.route?.blockedClasses?.length);
+    map.setTerrain(state.terrain);
+  }
+
+  function onToggleTerrain() {
+    state.terrain = !state.terrain;
+    storage.set('tt.terrain', state.terrain ? '1' : '0');
+    map.setTerrain(state.terrain);
+    if (state.terrain) toast('Hills on. This is heavier for the phone: turn it off if the map stutters.', { type: 'info', timeout: 4000 });
+    render();
   }
 
   let switching = false;
@@ -896,10 +927,14 @@ export function touringView(roomId) {
         onChange: (rs) => {
           state.route = rs;
           if (rs.status === 'ok' && rs.route) {
-            map.setRoute(rs.route.coords);
+            if (rs.route !== lastDrawnRoute) { lastDrawnRoute = rs.route; map.setRoute(rs.route.coords); }
             if (rs.route !== lastGuidedRoute) { lastGuidedRoute = rs.route; guide?.setRoute(rs.route); }
           } else if (!rs.route && lastGuidedRoute) { lastGuidedRoute = null; guide?.setRoute(null); }
-          else if (!state.destination) map.setRoute(null);
+          else if (!state.destination) { lastDrawnRoute = null; map.setRoute(null); }
+          // faded while re-routing, or when the route touches a toll road (not usable for a motorcycle)
+          const tolled = !!rs.route?.blockedClasses?.length;
+          map.setRouteDim(!!rs.rerouting || tolled);
+          if (tolled && rs.route !== lastTollWarned) { lastTollWarned = rs.route; vibrate('toll'); }
           render();
         }
       });
@@ -907,9 +942,22 @@ export function touringView(roomId) {
 
       guide = new TurnGuide(APP.guidance, {
         onAlert: ({ stage, maneuver }) => vibrate(maneuver.step.type === 'arrive' ? 'arrive' : stage),
-        onOffRoute: () => { vibrate('offroute'); routeManager.reroute(APP.guidance.rerouteMinIntervalMs); }
+        onOffRoute: () => { vibrate('offroute'); routeManager.reroute(APP.guidance.rerouteMinIntervalMs, APP.guidance.rerouteRetries); }
       });
       cleanups.push(() => { guide = null; try { navigator.vibrate?.(0); } catch { /* ignore */ } });
+
+      regionWatch = new RegionWatch({
+        cfg: APP.region,
+        geocode: (lat, lng) => reverseRegion(lat, lng),
+        weather: (lat, lng) => fetchWeather(lat, lng),
+        onAnnounce: ({ kind, region, weather }) => {
+          if (destroyed || !state.regionAlerts) return;
+          const head = `${kind === 'ahead' ? 'Sebentar lagi memasuki' : 'Memasuki'} ${regionName(region)}`;
+          const line = weatherLine(weather);
+          toast(line ? `${head}\n${line}` : head, { type: 'area', timeout: APP.region.popupMs });
+        }
+      });
+      cleanups.push(() => { regionWatch?.destroy(); regionWatch = null; });
 
       wakeLock = new WakeLock();
       cleanups.push(() => wakeLock.destroy());

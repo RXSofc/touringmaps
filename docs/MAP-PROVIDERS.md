@@ -89,3 +89,15 @@ MapLibre map with extruded buildings. The flat map stays the default; the choice
 - While following yourself the camera turns to your direction of travel (heading-up). Dragging the map stops following.
 - If WebGL is missing, the library cannot load, or the vector tiles keep failing, the app returns to the flat map by itself.
 - Not tested against the real library or real tile servers from the build sandbox: check on a device.
+
+### What the 3D map draws (js/map-style.js)
+
+- Buildings: extruded from `render_height` (default 5 m when OpenStreetMap has no height there), shaded darker the taller they are, with ground footprint outlines from zoom 15 and a fixed light from the upper left so walls and roofs separate clearly.
+- Points of interest: dots from zoom 15.5, names from zoom 16. House numbers from zoom 17.5. Water names from zoom 10. Names need the glyph server (`MAP_CONFIG.vector.glyphs`); the dots do not.
+- The detail level is bounded by OpenStreetMap: where nobody mapped building heights or shops, there is nothing to draw.
+
+### Hills and mountains (HILL button, 3D map only)
+
+- Off by default. Turns on real relief from free elevation tiles (Terrarium encoding on AWS Open Data, no key) plus a grayscale hillshade. Settings: `MAP_CONFIG.vector.terrain` in `js/map-config.js` (tile URL, `exaggeration`, `errorsBeforeOff`).
+- It is heavier for the phone (extra tiles and a 3D height mesh). If elevation tiles keep failing, the map switches hills off by itself and keeps working.
+- Not tested against the real library or the real elevation server from the build sandbox: check on a device.

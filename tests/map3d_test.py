@@ -13,9 +13,9 @@ async () => {
       this.touchZoomRotate={enableRotation(){}}; this.cv=document.createElement('canvas');
       setTimeout(()=>this.h.load&&this.h.load(),0); }
     on(e,f){ this.h[e]=f; } addControl(){} getCanvas(){ return this.cv; } getContainer(){ return {clientHeight:600}; }
-    getSource(id){ return this.src[id]; } getLayer(){ return {}; } setLayoutProperty(id,k,v){ this.vis[id]=v; }
+    getSource(id){ return this.src[id]; } getLayer(){ return {}; } setLayoutProperty(id,k,v){ this.vis[id]=v; } setPaintProperty(id,k,v){ (this.paint ||= {})[id+':'+k]=v; }
     jumpTo(o){ if(o.center) this.c={lng:o.center[0],lat:o.center[1]}; if(o.bearing!==undefined) this.b=o.bearing; if(o.zoom!==undefined) this.z=o.zoom; this.jumps=(this.jumps||0)+1; }
-    easeTo(o){ this.ease=o; } flyTo(o){ this.fly=o; } fitBounds(b,o){ this.fit={b,o}; } setPadding(p){ this.pad=p; }
+    easeTo(o){ this.ease=o; } flyTo(o){ this.fly=o; } fitBounds(b,o){ this.fit={b,o}; } setPadding(p){ this.pad=p; } setTerrain(t){ this.terrain=t; }
     getCenter(){ return this.c; } getBearing(){ return this.b||0; } getZoom(){ return this.z; } resize(){ this.resized=true; } remove(){ this.gone=true; } }
   window.maplibregl = { Map, Marker, AttributionControl: class{} };
   const { TouringMap3D } = await import('/js/map3d.js');
@@ -27,10 +27,12 @@ async () => {
   ok(new Set(ids).size===ids.length,'dup layer ids');
   ok(st.layers.every(l=>l.type==='background'||st.sources[l.source]),'layer without source');
   ok(st.glyphs && st.sources.openmaptiles.url && st.sources.openmaptiles.maxzoom===undefined,'source config');
+  ok(st.sources.route.lineMetrics===true,'route lineMetrics for gradient');
+  ok(JSON.stringify(st.layers.find(l=>l.id==='route-line').paint['line-gradient']).includes('line-progress'),'route gradient');
   ok(ids.includes('building-3d') && ids.indexOf('route-line')>ids.indexOf('building-3d'),'route above buildings');
 
-  let panned=0, clicks=[], rider=[], tileErr=0;
-  const m = new TouringMap3D(document.getElementById('m'), {onUserPan:()=>panned++, onMapClick:l=>clicks.push(l), onRiderClick:u=>rider.push(u), onTileError:()=>tileErr++}, {lat:-6.2,lng:106.8,zoom:16});
+  let terrErr=0, panned=0, clicks=[], rider=[], tileErr=0;
+  const m = new TouringMap3D(document.getElementById('m'), {onUserPan:()=>panned++, onMapClick:l=>clicks.push(l), onRiderClick:u=>rider.push(u), onTileError:()=>tileErr++, onTerrainError:()=>terrErr++}, {lat:-6.2,lng:106.8,zoom:16});
   ok(Math.abs(inst.z-15)<1e-9,'zoom conversion (leaflet 16 -> ml 15), got '+inst.z);
   ok(inst.o.pitch===60,'pitch');
   ok(Math.abs(m.getView().zoom-16)<1e-9,'getView round trip');
@@ -58,6 +60,23 @@ async () => {
   await new Promise(r=>setTimeout(r,400));
   ok(inst.jumps>3 && inst.jumps<20,'follow jumps camera but throttled, got '+inst.jumps); ok(inst.b>0 && inst.b<=90,'bearing turns toward heading, got '+inst.b);
   const jumps=inst.jumps; m.setFollow(null); ok(inst.pad.top===0,'padding reset');
+
+  // my dot is pulled onto my route line (4 m beside it)
+  { const off = 4/(111320*Math.cos(6.2*Math.PI/180));
+    m.setRoute([[-6.19,106.8],[-6.21,106.8]]);
+    m.syncRiders([{...r1, lat:-6.2, lng:106.8+off, fix:{speed:0,heading:0,accuracy:5,measuredAt:Date.now()+1}}, r2]);
+    await new Promise(r=>setTimeout(r,500));
+    const self=m.riders.get('a'); ok(Math.abs(self.lng-106.8)<1e-7,'self dot snapped to the route, lng '+self.lng);
+    const other=m.riders.get('b'); ok(Math.abs(other.lng-106.81)<1e-6,'other riders not snapped');
+    m.setRoute(null); }
+
+  // hills: off by default, on/off toggles terrain + hillshade, failing elevation tiles switch it off by themselves
+  ok(inst.terrain===null||inst.terrain===undefined,'terrain off by default');
+  m.setTerrain(true); ok(inst.terrain && inst.terrain.source==='terrain' && inst.terrain.exaggeration>1,'terrain on'); ok(inst.vis['hillshade']==='visible','hillshade shown');
+  m.setTerrain(false); ok(inst.terrain===null && inst.vis['hillshade']==='none','terrain off again');
+  m.setTerrain(true); for(let i=0;i<5;i++) inst.h.error({sourceId:'terrain',error:{message:'x'}});
+  ok(terrErr===1 && inst.terrain===null,'bad elevation tiles switch hills off once, got '+terrErr); ok(tileErr===0,'terrain errors do not count as map errors');
+  ok(st.sources.terrain.type==='raster-dem' && st.sources.terrain.encoding==='terrarium','terrain source'); ok(ids.includes('hillshade') && ids.indexOf('hillshade')<ids.indexOf('road-primary'),'hillshade under roads');
   // accuracy
   m.setAccuracy({latitude:-6.2,longitude:106.8,accuracy:25});
   const ring=inst.src.accuracy.d.features[0].geometry.coordinates[0]; ok(ring.length===49,'accuracy ring');

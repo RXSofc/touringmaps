@@ -169,7 +169,8 @@ export class TurnGuide {
     const limit = Math.max(c.offRouteM, (fix.accuracy || 0) * 1.5);
     if (proj.lateral > limit) {
       this.offStrikes += 1;
-      if (this.offStrikes >= c.offRouteFixes && !this.offRoute) { this.offRoute = true; this.onOffRoute(); }
+      const farOff = c.offRouteFarM && proj.lateral > c.offRouteFarM && (fix.accuracy || 0) <= (c.offRouteFarMaxAccM ?? 30);
+      if ((this.offStrikes >= c.offRouteFixes || farOff) && !this.offRoute) { this.offRoute = true; this.onOffRoute(); }
     } else {
       this.offStrikes = 0;
       if (this.offRoute) { this.offRoute = false; }

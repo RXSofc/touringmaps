@@ -108,8 +108,11 @@ export function toast(message, { type = 'info', timeout, action } = {}) {
   host.style.setProperty('--toast-bottom', `${(dockH || 84) + 10}px`);
   // The same message again replaces the old one instead of stacking.
   for (const old of [...host.children]) if (old.dataset.msg === String(message)) old.remove();
+  const lines = String(message).split('\n');
   const el = h('div', { class: `toast toast--${type}`, role: type === 'error' ? 'alert' : 'status' },
-    h('span', {}, message),
+    lines.length > 1
+      ? h('span', { class: 'toast__text' }, h('strong', {}, lines[0]), h('span', { class: 'toast__sub' }, lines.slice(1).join(' · ')))
+      : h('span', {}, message),
     action ? h('button', { type: 'button', class: 'btn btn--sm', onclick: () => { action.onClick(); dismiss(); } }, action.label) : null
   );
   const dismiss = () => el.remove();
@@ -313,11 +316,10 @@ export function cleanText(value, max) {
 
 /** Inline SVG data-URL avatar with the rider's initial. Used when no photo is set. */
 export function defaultAvatar(name, seed = '') {
-  const palette = ['#FFFFFF', '#000000'];
+  const palette = [['#141616', '#E6E3E1'], ['#3D3C38', '#E6E3E1'], ['#746D67', '#E6E3E1'], ['#A49F9D', '#141616'], ['#7F1D1A', '#E6E3E1'], ['#E6E3E1', '#141616']];
   let hash = 0;
   for (const ch of `${seed}${name}`) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
-  const bg = palette[hash % palette.length];
-  const fg = bg === '#000000' ? '#FFFFFF' : '#000000';
+  const [bg, fg] = palette[hash % palette.length];
   const initial = ([...String(name || '?').trim()][0] || '?').toUpperCase();
   const safe = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[initial] || initial;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="${bg}"/><text x="32" y="43" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="34" fill="${fg}">${safe}</text></svg>`;

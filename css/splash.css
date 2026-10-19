@@ -1,4 +1,4 @@
-/* Launch splash. Black, white only. Paint-critical: loaded before every other stylesheet.
+/* Launch splash. Dark Void, paper, Equilibrium and Falu Red. Paint-critical: loaded before every other stylesheet.
    Concept: three riders arrive from different directions, their routes draw themselves and
    merge into one lane (VEXLANE). The lane is the loading indicator, then widens to become the page. */
 #splash {
@@ -6,19 +6,19 @@
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: #000;
-  color: #fff;
+  background: #141616;
+  color: #E6E3E1;
   overflow: hidden;
   transition: opacity 0.3s linear;
 }
 #splash.is-gone { opacity: 0; pointer-events: none; }
 .sp-art { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.sp-trail { fill: none; stroke: #fff; stroke-width: 3.5; stroke-linecap: square; stroke-linejoin: miter; }
+.sp-trail { fill: none; stroke: #A49F9D; stroke-width: 3.5; stroke-linecap: square; stroke-linejoin: miter; }
 .sp-head { opacity: 0; }
 .sp-head.is-on { opacity: 1; }
-.sp-head rect.o { fill: #fff; }
-.sp-head rect.i { fill: #000; }
-.sp-head path { stroke: #fff; stroke-width: 2; fill: none; }
+.sp-head rect.o { fill: #7F1D1A; }
+.sp-head rect.i { fill: #E6E3E1; }
+.sp-head path { stroke: #E6E3E1; stroke-width: 2; fill: none; }
 
 /* wordmark: one line, every letter slams up from under a hard clip edge */
 .sp-stage {
@@ -49,16 +49,16 @@
   min-height: 1em;
 }
 .sp-tag:empty::after { display: none; }
-.sp-tag::after { content: ""; display: inline-block; width: 0.5em; height: 0.9em; margin-left: 0.2em; background: #fff; vertical-align: -0.1em; animation: sp-caret 0.9s steps(1) infinite; }
+.sp-tag::after { content: ""; display: inline-block; width: 0.5em; height: 0.9em; margin-left: 0.2em; background: #A49F9D; vertical-align: -0.1em; animation: sp-caret 0.9s steps(1) infinite; }
 @keyframes sp-caret { 50% { opacity: 0; } }
 
-/* the road: white bar with black center dashes that keep marching while the app loads */
+/* the road: gray bar with ink center dashes that keep marching while the app loads */
 .sp-road {
   position: absolute;
   left: 50%; top: var(--sp-y);
   width: 0; height: 8px;
   transform: translate(-50%, -50%);
-  background: #fff;
+  background: #A49F9D;   /* the same gray as the page it turns into */
   overflow: hidden;
   transition: width 0.7s cubic-bezier(0.2, 0.9, 0.1, 1), height 0.9s cubic-bezier(0.8, 0, 0.2, 1);
 }
@@ -67,7 +67,7 @@
   position: absolute;
   left: 0; right: 0; top: calc(50% - 1px);
   height: 2px;
-  background: repeating-linear-gradient(90deg, #000 0 12px, transparent 12px 24px);
+  background: repeating-linear-gradient(90deg, #141616 0 12px, transparent 12px 24px);
   animation: sp-march 0.55s linear infinite;
 }
 @keyframes sp-march { to { background-position-x: 24px; } }

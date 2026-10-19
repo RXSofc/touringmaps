@@ -75,12 +75,29 @@ function createCard(profile) {
   const name = h('input', { class: 'input', id: 'room-name', maxlength: APP.limits.roomName, placeholder: 'Sunday ride to Kawah Putih', autocomplete: 'off' });
   const discord = h('input', { class: 'input', id: 'room-discord', type: 'url', inputmode: 'url', placeholder: 'https://discord.gg/yourInvite', autocomplete: 'off' });
   const discordMsg = h('div', { class: 'field__hint', id: 'room-discord-msg' }, 'Optional. You can add it later.');
+  const size = h('input', { class: 'input input--mono', id: 'room-size', type: 'number', inputmode: 'numeric', min: APP.limits.minRoomMembers, max: APP.limits.maxRoomMembers, step: 1, value: APP.limits.defaultMembers, autocomplete: 'off', 'aria-describedby': 'room-size-msg' });
+  const sizeMsg = h('div', { class: 'field__hint', id: 'room-size-msg' });
+  const sizeHint = () => {
+    const n = Math.trunc(Number(size.value));
+    const bad = !Number.isFinite(n) || n < APP.limits.minRoomMembers || n > APP.limits.maxRoomMembers;
+    sizeMsg.className = bad ? 'field__error' : 'field__hint';
+    sizeMsg.textContent = bad
+      ? `Choose a number from ${APP.limits.minRoomMembers} to ${APP.limits.maxRoomMembers}.`
+      : n > 12 ? 'Large room: every position goes to everyone, so it uses a lot more data. The size cannot be changed later.'
+      : 'How many riders can join. It cannot be changed later.';
+    if (bad) size.setAttribute('aria-invalid', 'true'); else size.removeAttribute('aria-invalid');
+    return bad ? null : n;
+  };
+  size.addEventListener('input', sizeHint);
+  sizeHint();
   const error = h('div', { class: 'banner banner--danger', role: 'alert', hidden: true });
   const submit = h('button', { class: 'btn btn--primary btn--block', type: 'submit' }, icon('plus'), 'Create room');
 
   const form = h('form', { class: 'form', novalidate: true, onsubmit: async (e) => {
     e.preventDefault();
     error.hidden = true;
+    const capacity = sizeHint();
+    if (capacity === null) { size.focus(); return; }
     const url = discord.value.trim();
     if (url) {
       const v = validateDiscordUrl(url);
@@ -88,7 +105,7 @@ function createCard(profile) {
     }
     discordMsg.className = 'field__hint'; discordMsg.textContent = 'Optional. You can add it later.'; discord.removeAttribute('aria-invalid');
     try {
-      const { roomId } = await withBusy(submit, () => createRoom({ uid: user.uid, profile, name: name.value, discordUrl: url }));
+      const { roomId } = await withBusy(submit, () => createRoom({ uid: user.uid, profile, name: name.value, discordUrl: url, capacity }));
       try { sessionStorage.setItem('tt.justCreated', roomId); } catch { /* storage may be blocked */ }
       navigate(`/room/${roomId}`);
     } catch (err) {
@@ -98,12 +115,13 @@ function createCard(profile) {
   } },
   error,
   h('div', { class: 'field' }, h('label', { for: 'room-name' }, 'Room name'), name),
+  h('div', { class: 'field' }, h('label', { for: 'room-size' }, 'Maximum riders'), size, sizeMsg),
   h('div', { class: 'field' }, h('label', { for: 'room-discord' }, 'Discord voice link'), discord, discordMsg),
   submit);
 
   return h('section', { class: 'card', 'aria-labelledby': 'create-title' },
     h('h2', { class: 'card__title', id: 'create-title' }, icon('flag'), 'Create a touring room'),
-    h('p', { class: 'muted small' }, `Private. Up to ${APP.limits.maxMembers} riders, joined only with your invite code.`),
+    h('p', { class: 'muted small' }, `Private. Up to ${APP.limits.maxRoomMembers} riders, joined only with your invite code.`),
     form);
 }
 
@@ -143,7 +161,7 @@ function joinCard() {
     mountInto(result, h('div', { class: 'preview' },
       h('p', { class: 'tag' }, 'Room found'),
       h('h3', {}, preview.roomName),
-      h('p', { class: 'muted small' }, `Invite valid until ${formatDate(preview.expiresAt)}`),
+      h('p', { class: 'muted small' }, `Up to ${preview.capacity} riders. Invite valid until ${formatDate(preview.expiresAt)}`),
       confirm));
   } },
   h('div', { class: 'field' }, h('label', { for: 'join-code' }, 'Invite code'), input, msg),

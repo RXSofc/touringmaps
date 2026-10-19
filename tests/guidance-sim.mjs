@@ -1,6 +1,6 @@
 // Simulated drive for the turn alerts: node tests/guidance-sim.mjs
 import { TurnGuide, describeStep, buildPath } from '../js/guidance.js';
-const cfg = { enabled:true, farSeconds:30, farMinM:200, farMaxM:500, nearSeconds:10, nearMinM:60, nearMaxM:200, nowM:30, passedM:25, arriveM:25, offRouteM:40, offRouteFixes:3, rerouteMinIntervalMs:8000, vibrate:true };
+const cfg = { enabled:true, farSeconds:30, farMinM:200, farMaxM:500, nearSeconds:10, nearMinM:60, nearMaxM:200, nowM:30, passedM:25, arriveM:25, offRouteM:40, offRouteFixes:2, offRouteFarM:90, offRouteFarMaxAccM:30, rerouteMinIntervalMs:3500, vibrate:true };
 const M = 111320, LAT0 = -7.8, LNG0 = 110.37, cosL = Math.cos(LAT0*Math.PI/180);
 const ll = (x, y) => [LAT0 + y/M, LNG0 + x/(M*cosL)];       // metres east/north of origin -> [lat,lng]
 // route: east 1000 m, LEFT (north) 800 m, roundabout (exit 2) then continue north 600 m, U-turn... then arrive

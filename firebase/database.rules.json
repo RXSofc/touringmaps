@@ -37,6 +37,7 @@
         "createdBy": { ".validate": "newData.isString() && newData.val() === auth.uid" },
         "status": { ".validate": "newData.val() === 'open' || newData.val() === 'closed'" },
         "expiresAt": { ".validate": "newData.isNumber()" },
+        "capacity": { ".validate": "newData.isNumber() && newData.val() >= 2 && newData.val() <= 30" },
         "$other": { ".validate": false }
       }
     },
@@ -63,6 +64,13 @@
           ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{64}$/)"
         },
         "createdAt": { ".validate": "newData.isNumber()" },
+
+        "capacity": { ".validate": "newData.isNumber() && newData.val() >= 2 && newData.val() <= 30" },
+        "slotsAllowed": {
+          "$s": { ".validate": "$s.matches(/^([0-9]|[12][0-9])$/) && newData.val() === true" },
+          ".validate": "newData.child('0').exists() && newData.child('1').exists()"
+        },
+
         "updatedAt": {
           ".write": "auth != null && root.child('rooms').child($roomId).child('ownerUid').val() === auth.uid",
           ".validate": "newData.isNumber()"
@@ -78,8 +86,8 @@
 
         "slots": {
           "$slot": {
-            ".validate": "$slot.matches(/^[0-5]$/) && newData.isString() && newData.val() === auth.uid",
-            ".write": "auth != null && ((!data.exists() && newData.val() === auth.uid && newData.parent().parent().child('members').child(auth.uid).child('slot').val() === $slot) || (data.exists() && !newData.exists() && (data.val() === auth.uid || root.child('rooms').child($roomId).child('ownerUid').val() === auth.uid)))"
+            ".validate": "$slot.matches(/^([0-9]|[12][0-9])$/) && newData.isString() && newData.val() === auth.uid",
+            ".write": "auth != null && ((!data.exists() && newData.val() === auth.uid && newData.parent().parent().child('members').child(auth.uid).child('slot').val() === $slot && (root.child('rooms').child($roomId).child('slotsAllowed').child($slot).exists() || (!root.child('rooms').child($roomId).child('slotsAllowed').exists() && $slot.matches(/^[0-5]$/)))) || (data.exists() && !newData.exists() && (data.val() === auth.uid || root.child('rooms').child($roomId).child('ownerUid').val() === auth.uid)))"
           }
         },
 
@@ -89,7 +97,7 @@
             ".validate": "newData.hasChildren(['role', 'joinedAt', 'displayName', 'slot']) && (auth.uid === $uid || data.exists())",
             "role": { ".validate": "newData.val() === 'owner' || newData.val() === 'member'" },
             "joinedAt": { ".validate": "newData.isNumber()" },
-            "slot": { ".validate": "newData.isString() && newData.val().matches(/^[0-5]$/)" },
+            "slot": { ".validate": "newData.isString() && newData.val().matches(/^([0-9]|[12][0-9])$/)" },
             "inviteHash": { ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{64}$/)" },
             "displayName": {
               ".write": "auth != null && auth.uid === $uid && root.child('rooms').child($roomId).child('members').child($uid).exists()",

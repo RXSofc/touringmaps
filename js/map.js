@@ -6,6 +6,9 @@ import { MAP_CONFIG, usableProviders } from './map-config.js';
 import { h, formatAge, defaultAvatar } from './ui.js';
 import { APP } from './config.js';
 import { MotionTrack } from './motion.js';
+import { makeSnapper } from './snap.js';
+import { buildPath } from './guidance.js';
+import { routeColorAt, ROUTE_CASING } from './route-style.js';
 
 const L = window.L;
 
@@ -41,9 +44,9 @@ export function destinationEl(preview) {
   svg.setAttribute('viewBox', '0 0 64 64');
   svg.setAttribute('aria-hidden', 'true');
   svg.innerHTML =
-    '<path d="M14 58V6" stroke="#000000" stroke-width="6" fill="none"/>' +
-    '<path d="M17 8h38l-8 12 8 12H17z" fill="#FFFFFF" stroke="#000000" stroke-width="4" stroke-linejoin="miter"/>' +
-    '<path d="M24 10h8v8h-8zM40 10h8v8h-8zM32 18h8v8h-8zM24 26h8v4h-8zM40 26h6v4h-6z" fill="#000000"/>';
+    '<path d="M14 58V6" stroke="#141616" stroke-width="6" fill="none"/>' +
+    '<path d="M17 8h38l-8 12 8 12H17z" fill="#7F1D1A" stroke="#141616" stroke-width="4" stroke-linejoin="miter"/>' +
+    '<path d="M24 10h8v8h-8zM40 10h8v8h-8zM32 18h8v8h-8zM24 26h8v4h-8zM40 26h6v4h-6z" fill="#E6E3E1"/>';
   return h('div', { class: `dest-marker${preview ? ' is-preview' : ''}` }, svg,
     h('div', { class: 'dest-marker__label' }, preview ? 'PREVIEW' : 'DEST'));
 }
@@ -88,7 +91,9 @@ export class TouringMap {
     this.routeLayer = L.layerGroup().addTo(this.map);
     this.otherRouteLayer = L.layerGroup().addTo(this.map);
     this.routeVisible = true;
+    this.routeDim = false;
     this.routeCoords = null;
+    this.snapper = null;
 
     this.map.on('dragstart', () => handlers.onUserPan?.());
     this.map.on('click', (e) => handlers.onMapClick?.({ lat: e.latlng.lat, lng: e.latlng.lng }));
@@ -170,7 +175,9 @@ export class TouringMap {
     const now = Date.now();
     let busy = false;
     for (const [uid, e] of this.riders) {
-      const s = e.track.sample(now);
+      let s = e.track.sample(now);
+      // my own dot rides on my route line instead of beside it
+      if (e.data.isSelf && this.snapper && this.routeVisible) s = { ...s, ...this.snapper.apply(s, e.data.fix?.accuracy) };
       const cur = e.marker.getLatLng();
       if (Math.abs(cur.lat - s.lat) > 1e-9 || Math.abs(cur.lng - s.lng) > 1e-9) e.marker.setLatLng([s.lat, s.lng]);
       if (!s.settled) busy = true;
@@ -190,8 +197,8 @@ export class TouringMap {
     const ll = [fix.latitude, fix.longitude];
     if (!this.accuracyCircle) {
       this.accuracyCircle = L.circle(ll, {
-        radius: fix.accuracy, color: '#000000', weight: 1.5, dashArray: '4 4',
-        fillColor: '#000000', fillOpacity: 0.08, interactive: false
+        radius: fix.accuracy, color: '#141616', weight: 1.5, dashArray: '4 4',
+        fillColor: '#141616', fillOpacity: 0.08, interactive: false
       }).addTo(this.map);
     } else {
       if (![...this.riders.values()].some((e) => e.data.isSelf)) this.accuracyCircle.setLatLng(ll); // otherwise the animation loop moves it
@@ -237,17 +244,42 @@ export class TouringMap {
   setRoute(coords) {
     this.routeLayer.clearLayers();
     this.routeCoords = coords || null;
-    if (!coords) return;
-    // black casing under a white line keeps the route readable on the grayscale basemap
-    L.polyline(coords, { color: '#000000', weight: 10, opacity: 1, lineCap: 'butt', lineJoin: 'miter', interactive: false, className: 'route-casing' }).addTo(this.routeLayer);
-    L.polyline(coords, { color: '#FFFFFF', weight: 5, opacity: 1, lineCap: 'butt', lineJoin: 'miter', interactive: false }).addTo(this.routeLayer);
+    this.snapper = coords && coords.length > 1 ? makeSnapper(coords) : null;
+    if (!coords || coords.length < 2) return;
+    // dark casing under a muted-red line that fades to soft white toward the destination
+    L.polyline(coords, { color: ROUTE_CASING, weight: 10, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false, className: 'route-casing' }).addTo(this.routeLayer);
+    const path = buildPath(coords);
+    const parts = Math.max(1, Math.min(32, Math.round(path.total / 120)));   // about one colour step per 120 m
+    let from = 0;
+    for (let k = 1; k <= parts; k++) {
+      const target = (path.total * k) / parts;
+      let to = from;
+      while (to < coords.length - 1 && path.cum[to] < target) to++;
+      if (k === parts) to = coords.length - 1;
+      if (to > from) {
+        L.polyline(coords.slice(from, to + 1), { color: routeColorAt((k - 0.5) / parts), weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(this.routeLayer);
+        from = to;
+      }
+    }
+    this._applyRouteDim();
     this._applyRouteVisibility();
+  }
+
+  /** Faded line = "this route is out of date / not usable" (re-routing, or it touches a toll road). */
+  setRouteDim(dim) {
+    this.routeDim = !!dim;
+    this._applyRouteDim();
+  }
+
+  _applyRouteDim() {
+    const o = this.routeDim ? 0.28 : 1;
+    this.routeLayer.eachLayer((l) => l.setStyle?.({ opacity: o }));
   }
 
   setOtherRoute(coords) {
     this.otherRouteLayer.clearLayers();
     if (!coords) return;
-    L.polyline(coords, { color: '#000000', weight: 8, opacity: 1, interactive: false }).addTo(this.otherRouteLayer);
+    L.polyline(coords, { color: '#141616', weight: 8, opacity: 1, interactive: false }).addTo(this.otherRouteLayer);
     L.polyline(coords, { color: '#FFFFFF', weight: 4, dashArray: '10 8', interactive: false }).addTo(this.otherRouteLayer);
   }
 
@@ -293,6 +325,9 @@ export class TouringMap {
   }
 
   invalidate() { this.map.invalidateSize({ animate: false }); }
+
+  /** Relief only exists on the 3D map. */
+  setTerrain() { return false; }
 
   /** Where the camera is, in Leaflet zoom units (shared with the 3D map so a switch keeps the view). */
   getView() { const c = this.map.getCenter(); return { lat: c.lat, lng: c.lng, zoom: this.map.getZoom() }; }

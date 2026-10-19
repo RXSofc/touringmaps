@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="/css/tokens.css"><link rel="stylesheet" href="/css/base.css"><link rel="stylesheet" href="/css/components.css"><link rel="stylesheet" href="/css/layout.css"></head>
+<body style="padding:12px;display:grid;gap:10px">
+<div class="auth-hero"><h1 style="margin:0">VEXLANE</h1><p style="margin:0">Ride together</p></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn--primary">Primary</button><button class="btn">Default</button><button class="btn btn--danger">Delete room</button><button class="btn btn--cancel">Cancel</button><button class="btn" aria-pressed="true">Pressed</button><button class="btn" disabled>Disabled</button></div>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip chip--success">LIVE</span><span class="chip chip--warning">STALE</span><span class="chip chip--danger">LOST</span><span class="chip chip--info">INFO</span><span class="chip chip--muted">MUTED</span><span class="dot dot--live"></span><span class="dot dot--stale"></span></div>
+<div class="banner banner--info"><div class="banner__body"><strong>Info.</strong> Waiting for riders.</div></div>
+<div class="banner banner--warning"><div class="banner__body"><strong>Warning.</strong> GPS accuracy is poor.</div><button class="btn btn--icon btn--sm btn--ghost btn--cancel">×</button></div>
+<div class="banner banner--danger"><div class="banner__body"><strong>Rute ini melewati jalan tol.</strong> Motor tidak boleh masuk tol.</div><button class="btn btn--sm">Open in Maps</button><button class="btn btn--icon btn--sm btn--ghost btn--cancel">×</button></div>
+<div class="banner banner--success"><div class="banner__body"><strong>Success.</strong> Room created.</div></div>
+<div class="navcard navcard--far"><div class="navcard__icon">↰</div><div class="navcard__body"><span class="navcard__dist">Dalam 300 m</span><strong class="navcard__title">Belok kiri</strong></div></div>
+<div class="navcard navcard--now"><div class="navcard__icon">↱</div><div class="navcard__body"><span class="navcard__dist">Sekarang</span><strong class="navcard__title">Belok kanan</strong></div></div>
+<div class="navcard navcard--offroute"><div class="navcard__body"><strong class="navcard__title">Keluar jalur</strong><span class="navcard__detail">Menghitung ulang rute…</span></div></div>
+<div class="tabs" style="display:flex"><button class="tab" aria-selected="true">Riders</button><button class="tab" aria-selected="false">Room</button></div>
+<label class="switch"><span>Region alerts</span><input type="checkbox" checked><span class="switch__track"></span></label>
+<div class="toasts" style="position:static;display:grid;gap:8px;justify-items:start;padding:0"><div class="toast toast--success"><span>Saved</span></div><div class="toast toast--error"><span>Something failed</span></div><div class="toast toast--warning"><span>Careful</span></div><div class="toast toast--area"><span class="toast__text"><strong>Sebentar lagi memasuki Kab. Bandung Barat, Cililin</strong><span class="toast__sub">Cerah · 30°C</span></span></div></div>
+</body></html>

@@ -31,7 +31,10 @@ function mapNetError(err) {
   return err;
 }
 
-const noExclude = new Set();   // provider ids whose server rejected `exclude=` (remembered for this session)
+const noExclude = new Set();   // "providerId:value" whose server rejected that `exclude=` (remembered for this session)
+// Only these OSRM answers mean "I do not understand exclude=". Anything else (NoSegment, TooBig…)
+// must NOT switch the toll filter off for the rest of the session.
+const EXCLUDE_UNSUPPORTED = new Set(['InvalidValue', 'InvalidOptions', 'InvalidQuery', 'InvalidUrl']);
 
 /** Turns an OSRM route into what the app needs, including the road classes it uses. */
 function parseOsrmRoute(route) {
@@ -46,6 +49,8 @@ function parseOsrmRoute(route) {
       const m = st.maneuver;
       if (!m || !Array.isArray(m.location)) continue;
       for (const inter of st.intersections || []) for (const c of inter.classes || []) classes.add(c);
+      // belt and braces: a road literally called "Tol ..." / "... Toll" counts as toll even when untagged
+      if (/(^|[^a-z])(tol|toll)([^a-z]|$)/i.test(`${st.name || ''} ${st.ref || ''}`)) classes.add('toll');
       steps.push({
         type: m.type,
         modifier: m.modifier || null,
@@ -70,44 +75,50 @@ function parseOsrmRoute(route) {
 const ADAPTERS = {
   async osrm(p, from, to, signal) {
     const coords = `${from.longitude.toFixed(6)},${from.latitude.toFixed(6)};${to.longitude.toFixed(6)},${to.latitude.toFixed(6)}`;
-    const build = (withExclude) => {
+    const build = (exclude) => {
       const url = new URL(`${p.baseUrl.replace(/\/+$/, '')}/${coords}`);
       url.searchParams.set('overview', R.overview);
       url.searchParams.set('geometries', 'geojson');
       url.searchParams.set('steps', String(!!R.steps));
       url.searchParams.set('alternatives', 'false');
-      if (withExclude && R.avoid.length) url.searchParams.set('exclude', R.avoid.join(','));
+      if (exclude) url.searchParams.set('exclude', exclude);
       if (p.apiKeyParam && p.apiKey) url.searchParams.set(p.apiKeyParam, p.apiKey);
       return url.toString();
     };
-    const wantExclude = R.avoid.length > 0 && !noExclude.has(p.id);
-
-    const ask = async (withExclude) => {
+    const ask = async (exclude) => {
       try {
-        return await fetchJson(build(withExclude), { signal, timeoutMs: R.timeoutMs });
+        return await fetchJson(build(exclude), { signal, timeoutMs: R.timeoutMs });
       } catch (err) {
         if (err instanceof NetError && err.kind === 'http' && err.status === 400 && err.body) return err.body; // OSRM answers errors as JSON
         throw err;
       }
     };
 
-    let data = await ask(wantExclude);
-    let excluded = wantExclude;
-    if (wantExclude && data?.code && !['Ok', 'NoRoute'].includes(data.code)) {
-      // This server does not understand `exclude=` (or the toll class). Remember it and retry;
-      // the returned route is then checked for toll/motorway classes instead.
-      noExclude.add(p.id);
-      excluded = false;
-      data = await ask(false);
+    // Attempt order: every configured avoid value (toll first), then the same without exclude.
+    // Whatever comes back is scanned for toll/motorway classes and flagged UNSAFE if it has them.
+    const attempts = R.avoid.filter((v) => !noExclude.has(`${p.id}:${v}`));
+    let firstBlocked = null;
+    let sawNoRoute = false;
+    for (const exclude of [...attempts, null]) {
+      const data = await ask(exclude);
+      if (exclude && data?.code && !['Ok', 'NoRoute'].includes(data.code)) {
+        if (EXCLUDE_UNSUPPORTED.has(data.code)) noExclude.add(`${p.id}:${exclude}`);   // server cannot do this exclude; try the next
+        else if (data.code === 'NoSegment') throw new RouteError('no-route', 'No road was found near your position or the destination.');
+        continue;
+      }
+      if (data?.code === 'NoRoute') { sawNoRoute = true; continue; }
+      if (data?.code !== 'Ok') { if (!exclude) throw new RouteError('invalid', 'The routing service sent an unusable answer.'); continue; }
+      const parsed = parseOsrmRoute(data.routes?.[0]);
+      const blocked = R.blockClasses.filter((c) => parsed.classes.includes(c));
+      const result = { ...parsed, tollAvoidedByServer: !!exclude, blockedClasses: blocked };
+      if (!blocked.length) return result;            // clean route: done
+      firstBlocked ||= result;                       // remember it, maybe the next attempt is clean
     }
-    if (data?.code === 'NoRoute') {
-      throw new RouteError(excluded ? 'no-route-toll-free' : 'no-route',
-        excluded ? 'No route without toll roads was found. Motorcycles cannot use toll roads, so use a maps app.' : 'No road route was found between these points.');
+    if (firstBlocked) return firstBlocked;           // every option touches toll/motorway: flag it, never guide it
+    if (sawNoRoute && attempts.length) {
+      throw new RouteError('no-route-toll-free', 'No route without toll roads was found. Motorcycles cannot use toll roads, so use a maps app.');
     }
-    if (data?.code !== 'Ok') throw new RouteError('invalid', 'The routing service sent an unusable answer.');
-    const parsed = parseOsrmRoute(data.routes?.[0]);
-    const blocked = R.blockClasses.filter((c) => parsed.classes.includes(c));
-    return { ...parsed, tollAvoidedByServer: excluded, blockedClasses: blocked };
+    throw new RouteError('no-route', 'No road route was found between these points.');
   }
 };
 
@@ -170,7 +181,8 @@ export class RouteManager {
     this.onChange = onChange || (() => {});
     this.destination = null;
     this.origin = null;
-    this.state = { status: 'idle', route: null, error: null, calculatedAt: null };
+    this.state = { status: 'idle', route: null, error: null, calculatedAt: null, rerouting: false };
+    this.rerouteTries = 0;
     this.routeOrigin = null;
     this.lastRequestAt = 0;
     this.controller = null;
@@ -197,8 +209,10 @@ export class RouteManager {
     this._cancel();
     this.routeOrigin = null;
     this.offRouteStrikes = 0;
-    if (!dest) { this._set({ status: 'idle', route: null, error: null, calculatedAt: null }); return; }
-    this._set({ status: this.origin ? 'loading' : 'idle', route: null, error: null, calculatedAt: null });
+    clearTimeout(this._rerouteTimer);
+    this.rerouteTries = 0;
+    if (!dest) { this._set({ status: 'idle', route: null, error: null, calculatedAt: null, rerouting: false }); return; }
+    this._set({ status: this.origin ? 'loading' : 'idle', route: null, error: null, calculatedAt: null, rerouting: false });
     if (this.origin) this._request('destination-changed', true);
   }
 
@@ -240,13 +254,22 @@ export class RouteManager {
    * Rate limited to `minGapMs`; a request inside that window is deferred, not dropped.
    * The old route line stays on the map while the new one loads.
    */
-  reroute(minGapMs = 8000) {
+  reroute(minGapMs = 3500, retries = 5) {
     if (!this.destination || !this.origin || !this.enabled) return false;
     clearTimeout(this._rerouteTimer);
-    const wait = Math.max(0, minGapMs - (Date.now() - this.lastRequestAt));
-    const run = () => { if (this.destination && this.origin) this._request('off-route', false); };
-    if (wait === 0) run(); else this._rerouteTimer = setTimeout(run, wait);
+    this.rerouteTries = 0;
+    this.rerouteMax = retries;
+    this.rerouteGap = minGapMs;
+    if (!this.state.rerouting) this._set({ rerouting: true });   // UI: "recalculating", old line dimmed
+    this._scheduleReroute(minGapMs);
     return true;
+  }
+
+  _scheduleReroute(gapMs) {
+    clearTimeout(this._rerouteTimer);
+    const wait = Math.max(0, gapMs - (Date.now() - this.lastRequestAt));
+    const run = () => { if (this.destination && this.origin && this.state.rerouting) this._request('off-route', false); };
+    if (wait === 0) run(); else this._rerouteTimer = setTimeout(run, wait);
   }
 
   _cancel() {
@@ -269,11 +292,21 @@ export class RouteManager {
       if (generation !== this.generation) return;
       this.routeOrigin = from;
       this.offRouteStrikes = 0;
-      this._set({ status: 'ok', route, error: null, calculatedAt: Date.now() });
+      this.rerouteTries = 0;
+      this._set({ status: 'ok', route, error: null, calculatedAt: Date.now(), rerouting: false });
     } catch (err) {
       if (generation !== this.generation || err?.code === 'aborted') return;
+      const error = err instanceof RouteError ? err : new RouteError('service', 'Route calculation failed.');
       // Keep the previous route line if we have one; just flag the failure.
-      this._set({ status: 'error', error: err instanceof RouteError ? err : new RouteError('service', 'Route calculation failed.') });
+      // After leaving the route a failed request is retried with a growing delay, so a weak signal does not strand the rider.
+      const fatal = ['no-route', 'no-route-toll-free', 'unavailable'].includes(error.code);
+      if (this.state.rerouting && !fatal && this.rerouteTries < (this.rerouteMax ?? 5)) {
+        this.rerouteTries += 1;
+        this._set({ status: 'error', error });
+        this._scheduleReroute(Math.min(15000, (this.rerouteGap || 3500) * 2 ** this.rerouteTries));
+        return;
+      }
+      this._set({ status: 'error', error, rerouting: false });
     }
   }
 

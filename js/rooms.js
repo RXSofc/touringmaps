@@ -6,8 +6,10 @@
  *  - Only members can read a room. Room ids alone grant nothing.
  *  - A person can only add themselves, and only by presenting the room's current
  *    invite-code hash. Codes are 10 random symbols, hashed with SHA-256.
- *  - Capacity is six fixed "slots". A member write must claim a free slot in the
- *    same atomic update, so a seventh member is impossible.
+ *  - Capacity is a set of fixed "slots" (2 to 30, chosen by the owner when the room is
+ *    created and listed in rooms/{id}/slotsAllowed, which cannot change afterwards; rooms
+ *    created before this existed have slots 0-5). A member write must claim a free allowed
+ *    slot in the same atomic update, so one member too many is impossible.
  *  - Only the owner edits settings, status, invite code, members' removal,
  *    and (by default) the destination.
  */
@@ -80,8 +82,23 @@ function memberRecord({ role, slot, profile, inviteHash }) {
   return rec;
 }
 
-export async function createRoom({ uid, profile, name, discordUrl }) {
+/** A usable room size: a whole number from the allowed range, or the default. */
+export function clampCapacity(value) {
+  const n = Math.trunc(Number(value));
+  if (!Number.isFinite(n)) return APP.limits.defaultMembers;
+  return Math.min(Math.max(n, APP.limits.minRoomMembers), APP.limits.maxRoomMembers);
+}
+
+/** Capacity of a room record (rooms created before sizes existed hold six). */
+export function roomCapacity(meta) {
+  return Number.isInteger(meta?.capacity) ? clampCapacity(meta.capacity) : APP.limits.defaultMembers;
+}
+
+export async function createRoom({ uid, profile, name, discordUrl, capacity }) {
   try {
+    const cap = clampCapacity(capacity);
+    const slotsAllowed = {};
+    for (let n = 0; n < cap; n += 1) slotsAllowed[n] = true;
     const roomName = cleanText(name, APP.limits.roomName) ||
       `Touring ${new Date().toLocaleDateString([], { day: 'numeric', month: 'short' })}`;
 
@@ -110,11 +127,13 @@ export async function createRoom({ uid, profile, name, discordUrl }) {
         createdAt: stamp,
         updatedAt: stamp,
         invite: { code },
+        capacity: cap,
+        slotsAllowed,
         members: { [uid]: memberRecord({ role: 'owner', slot: '0', profile }) },
         slots: { 0: uid },
         settings
       },
-      [`inviteCodes/${hash}`]: { roomId, roomName, createdBy: uid, status: 'open', expiresAt },
+      [`inviteCodes/${hash}`]: { roomId, roomName, createdBy: uid, status: 'open', expiresAt, capacity: cap },
       [`users/${uid}/rooms/${roomId}`]: { name: roomName, role: 'owner', joinedAt: stamp },
       [`users/${uid}/currentRoomId`]: roomId
     });
@@ -137,7 +156,7 @@ export async function previewInvite(rawCode) {
     const v = snap.val();
     if (v.status === 'closed') throw new RoomError('closed', 'This room has been closed by its owner.');
     if (!(v.expiresAt > serverNow())) throw new RoomError('expired', 'This invitation has expired. Ask the room owner for a new code.');
-    return { code, hash, roomId: v.roomId, roomName: v.roomName, expiresAt: v.expiresAt };
+    return { code, hash, roomId: v.roomId, roomName: v.roomName, expiresAt: v.expiresAt, capacity: Number.isInteger(v.capacity) ? clampCapacity(v.capacity) : APP.limits.defaultMembers };
   } catch (err) {
     throw mapDbError(err);
   }
@@ -145,6 +164,7 @@ export async function previewInvite(rawCode) {
 
 export async function joinRoom(preview, { uid, profile }) {
   const { roomId, hash, roomName } = preview;
+  const capacity = Number.isInteger(preview.capacity) ? clampCapacity(preview.capacity) : APP.limits.defaultMembers;
   try {
     // Already a member? Just go in. (Non-members get permission-denied here, which is expected.)
     try {
@@ -157,7 +177,7 @@ export async function joinRoom(preview, { uid, profile }) {
       if (!isPermissionDenied(err)) throw err;
     }
 
-    for (let n = 0; n < APP.limits.maxMembers; n += 1) {
+    for (let n = 0; n < capacity; n += 1) {
       const slot = String(n);
       try {
         await update(ref(db), {
@@ -172,7 +192,7 @@ export async function joinRoom(preview, { uid, profile }) {
         // slot taken (or join not allowed): try the next slot
       }
     }
-    throw new RoomError('full', `Could not join. The room is full (${APP.limits.maxMembers} riders max), closed, or you were removed from it.`);
+    throw new RoomError('full', `Could not join. The room is full (${capacity} riders max), closed, or you were removed from it.`);
   } catch (err) {
     throw mapDbError(err);
   }
@@ -256,7 +276,7 @@ export async function deleteRoom(roomId, inviteHash, uid) {
 }
 
 /** Issues a fresh invite code and invalidates the old one. */
-export async function rotateInvite(roomId, { oldHash, roomName, status, uid }) {
+export async function rotateInvite(roomId, { oldHash, roomName, status, uid, capacity }) {
   try {
     const code = generateInviteCode();
     const hash = await hashCode(code);
@@ -267,7 +287,8 @@ export async function rotateInvite(roomId, { oldHash, roomName, status, uid }) {
       [`inviteCodes/${oldHash}`]: null,
       [`inviteCodes/${hash}`]: {
         roomId, roomName, createdBy: uid, status: status || 'open',
-        expiresAt: Math.round(serverNow() + APP.invite.ttlDays * 86400000)
+        expiresAt: Math.round(serverNow() + APP.invite.ttlDays * 86400000),
+        ...(Number.isInteger(capacity) ? { capacity: clampCapacity(capacity) } : {})
       }
     });
     return { code, hash };

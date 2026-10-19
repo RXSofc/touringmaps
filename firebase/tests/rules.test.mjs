@@ -72,7 +72,7 @@ test('cannot join as someone else, or without claiming the matching slot', async
   await assertFails(db('a').ref().update(noSlot));
 });
 
-test('capacity is six riders', async () => {
+test('rooms created before sizes existed (no slotsAllowed) still hold six riders', async () => {
   for (const [i, uid] of ['a', 'b', 'c', 'd', 'e'].entries()) await assertSucceeds(db(uid).ref().update(joinUpdate(uid, i + 1)));
   for (let s = 0; s < 6; s++) await assertFails(db('f').ref().update(joinUpdate('f', s)));
 });
@@ -147,6 +147,51 @@ test('a new room can only contain its creator (no pre-filled members or slots)',
   await assertSucceeds(db('a').ref('rooms/room_creator_ok1').set(base({})));
   await assertFails(db('a').ref('rooms/room_creator_bad1').set(base({ members: { b: { role: 'member', slot: '1', joinedAt: now, displayName: 'B' } } })));
   await assertFails(db('a').ref('rooms/room_creator_bad2').set(base({ slots: { 1: 'b' } })));
+});
+
+/* ---- room size chosen by the owner (2 to 30) ---- */
+const bigRoom = (id, hash, cap, extra = {}) => ({
+  [`rooms/${id}`]: {
+    name: 'Big', ownerUid: 'owner', status: 'open', inviteCodeHash: hash, createdAt: now, updatedAt: now,
+    capacity: cap, slotsAllowed: Object.fromEntries(Array.from({ length: cap }, (_, i) => [i, true])),
+    members: { owner: { role: 'owner', slot: '0', joinedAt: now, displayName: 'Owner' } }, slots: { 0: 'owner' }, ...extra
+  },
+  [`inviteCodes/${hash}`]: { roomId: id, roomName: 'Big', createdBy: 'owner', status: 'open', expiresAt: Date.now() + 86400000, capacity: cap },
+  [`users/owner/rooms/${id}`]: { name: 'Big', role: 'owner', joinedAt: now }
+});
+
+test('a 10-rider room takes ten, refuses the eleventh, and refuses slots outside its set', async () => {
+  const big = 'room_bigroomxx1'; const H = 'b'.repeat(64);
+  const uids = Array.from({ length: 12 }, (_, i) => `u${i}`);
+  await env.withSecurityRulesDisabled(async (ctx) => { for (const u of uids) await ctx.database().ref(`users/${u}`).set({ displayName: u, createdAt: Date.now() }); });
+  await assertSucceeds(db('owner').ref().update(bigRoom(big, H, 10)));
+  const join = (uid, slot) => ({
+    [`rooms/${big}/slots/${slot}`]: uid,
+    [`rooms/${big}/members/${uid}`]: { role: 'member', slot: String(slot), joinedAt: now, displayName: uid, inviteHash: H },
+    [`users/${uid}/rooms/${big}`]: { name: 'Big', role: 'member', joinedAt: now }
+  });
+  for (let i = 1; i < 10; i++) await assertSucceeds(db(`u${i}`).ref().update(join(`u${i}`, i)));
+  for (let s = 0; s < 10; s++) await assertFails(db('u10').ref().update(join('u10', s)));   // every slot taken
+  await assertFails(db('u10').ref().update(join('u10', 10)));                               // outside the room's slots
+  await assertFails(db('u11').ref().update(join('u11', 29)));
+});
+
+test('a 30-rider room can use slot 29', async () => {
+  const big = 'room_bigroomxx2'; const H = 'c'.repeat(64);
+  await assertSucceeds(db('owner').ref().update(bigRoom(big, H, 30)));
+  await assertSucceeds(db('a').ref().update({
+    [`rooms/${big}/slots/29`]: 'a',
+    [`rooms/${big}/members/a`]: { role: 'member', slot: '29', joinedAt: now, displayName: 'a', inviteHash: H },
+    [`users/a/rooms/${big}`]: { name: 'Big', role: 'member', joinedAt: now }
+  }));
+});
+
+test('room size must be 2 to 30 and cannot change afterwards', async () => {
+  await assertFails(db('owner').ref().update(bigRoom('room_bigroomxx3', 'd'.repeat(64), 1)));
+  await assertFails(db('owner').ref().update(bigRoom('room_bigroomxx4', 'e'.repeat(64), 31)));
+  await assertFails(db('owner').ref(`rooms/${roomId}/capacity`).set(30));
+  await assertFails(db('owner').ref(`rooms/${roomId}/slotsAllowed/6`).set(true));
+  await assertFails(db('a').ref(`rooms/${roomId}/slotsAllowed/6`).set(true));
 });
 
 /* ---- voice signalling fallback (only used when Supabase is not configured) ---- */

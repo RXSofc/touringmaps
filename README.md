@@ -1,6 +1,6 @@
 # VEXLANE
 
-Private, real-time coordination for motorcycle touring groups of 2–6 riders: live positions on a shared map, one shared destination, a route from each rider's own position, in-app push-to-talk voice, and a Discord backup button.
+Private, real-time coordination for motorcycle touring groups of 2–30 riders (default 6): live positions on a shared map, one shared destination, a route from each rider's own position, in-app push-to-talk voice, and a Discord backup button.
 
 Static site (HTML + CSS + vanilla JS modules) → deploys to **GitHub Pages**, runs inside an **Android WebView** wrapper such as AppMint. No framework, no build step, no server.
 
@@ -10,7 +10,7 @@ Static site (HTML + CSS + vanilla JS modules) → deploys to **GitHub Pages**, r
 |---|---|
 | Accounts | Email/password sign-in, registration, password reset, session restored after refresh, sign out |
 | Profile | Display name, bike, avatar (https link **or** uploaded photo shrunk to ~96 px and stored in the database, so no Firebase Storage/billing needed) |
-| Rooms | Create (random 10-symbol invite code, SHA-256 hashed in the index), join by code with preview, max 6 riders, closed / expired / full / removed errors, copy & share invitation, rotate code, close, delete, remove rider |
+| Rooms | Create (random 10-symbol invite code, SHA-256 hashed in the index), join by code with preview, owner picks 2–30 riders (default 6), closed / expired / full / removed errors, copy & share invitation, rotate code, close, delete, remove rider |
 | Live map | Leaflet + OpenStreetMap tiles, avatar markers updated in place, accuracy circle, follow-me, fit-all, destination jump, route toggle, legend, collapsible rider list |
 | GPS | `watchPosition` with configurable options, movement/interval throttling, accuracy gate, permission explainer, denied/unavailable/timeout handling, pause sharing, recovery when the app returns from the background, optional screen wake lock |
 | Presence | `.info/connected` + `onDisconnect()`, server-clock-corrected freshness: riders are shown **live / old fix / lost / offline / not sharing**; old coordinates are never presented as current |
@@ -122,4 +122,24 @@ Reading it: `path: relay` means TURN is carrying the audio; no `srflx` candidate
 
 ## 3D map
 
-Tap **3D** in the map buttons for a tilted map with 3D buildings that turns with your direction while you follow yourself. Flat map is the default. Details and how to change the tile source: `docs/MAP-PROVIDERS.md`.
+Tap **3D** in the map buttons for a tilted map with 3D buildings that turns with your direction while you follow yourself. Flat map is the default. In 3D, the **HILL** button adds hills and mountains (heavier for the phone, off by default). Details and how to change the tile source: `docs/MAP-PROVIDERS.md`.
+
+## Room size
+
+The owner chooses the maximum number of riders (2 to 30, default 6) when creating a room; it cannot change afterwards. The limit is enforced by the database rules (`slotsAllowed`), so you must **publish the updated `firebase/database.rules.json`** before creating rooms with a size. Rooms created earlier keep their six slots. Bigger rooms cost much more Firebase data (every position goes to every rider) and the in-app voice is a direct connection between phones, so for large groups use Discord for voice.
+
+## Navigation: off-route and toll safety
+
+- Leaving the route is noticed after 2 GPS fixes (1 fix when clearly far away with a good signal); the new route is requested within about 3.5 s. While it is being calculated the old line is faded and the popup says "Menghitung ulang rute…". A failed request is retried with a growing delay.
+- Routes never use toll roads: the server is asked with `exclude=toll`, then `exclude=motorway`; every answer is scanned for `toll`/`motorway` classes and for roads literally named "Tol". If a route still touches one, it is faded, guidance is switched off for it, a red warning appears and the phone vibrates a long pattern.
+
+## Region alerts (weather popup)
+
+Shortly before you cross into another kabupaten/kota a small popup shows, for about 7 seconds, for example:
+`Sebentar lagi memasuki Kab. Bandung Barat, Cililin` / `Cerah · 30°C` (plus "peluang hujan N%" when rain is likely). It appears 0.8–1.5 km before the border; with a route the look-ahead follows the route line, without one it follows the heading (and must see the same region twice). A border crossed without a warning is announced as "Memasuki …". The same region is not repeated within 20 minutes. Switch: Room menu → Region alerts.
+
+Data: region names from the geocoder chain (`reverse` with `addressdetails`, Nominatim by default, shared throttle and cool-down), weather from Open-Meteo (free, no key, non-commercial). Both need internet; when either fails the popup is skipped or shown without the weather line. Tuning: `APP.region` in `js/config.js`. Tests: `node tests/regionwatch.mjs`.
+
+## Colour palette
+
+Five colours from the reference image plus one light tint of Equilibrium for cards, all defined once in `css/tokens.css`: Dark Void `#141616` (text, borders, shadows), Iridium `#3D3C38` (filled / active / selected / success), Artillery `#746D67` (secondary fills), Equilibrium `#A49F9D` (page background, muted fills, warnings), Falu Red `#7F1D1A` (danger, errors, cancel / back / close, off-route, toll warning) and Paper `#E6E3E1` (cards, panels, dock). Warnings differ by a dashed border, not by another colour. The base map stays neutral gray; the route keeps its muted red-to-white gradient.

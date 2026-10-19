@@ -4,7 +4,7 @@
  * the user is typing in it.
  */
 import { h, icon, openSheet, mountInto, withBusy, toast, copyText, confirmDialog, avatarImg } from '../ui.js';
-import { formatCode as fmtCode } from '../rooms.js';
+import { formatCode as fmtCode, roomCapacity } from '../rooms.js';
 import { validateDiscordUrl } from '../discord.js';
 import { WakeLock } from '../permissions.js';
 import { APP } from '../config.js';
@@ -28,7 +28,7 @@ export function openRoomSheet({ getState, actions, onClose }) {
       h('h3', {}, 'Invite code'),
       code ? h('code', { class: 'code-display', 'aria-label': `Invite code ${fmtCode(code).split('').join(' ')}` }, fmtCode(code)) : h('div', { class: 'empty' }, 'Code unavailable.'),
       s.meta.status === 'closed' ? h('div', { class: 'banner banner--warning' }, icon('alert'), h('div', { class: 'banner__body' }, 'This room is closed. Nobody new can join and location sharing is paused.')) : null,
-      h('p', { class: 'muted small' }, `${s.memberCount} of ${APP.limits.maxMembers} riders. Anyone with this code can join until the room is full or you issue a new code.`),
+      h('p', { class: 'muted small' }, `${s.memberCount} of ${roomCapacity(s.meta)} riders. Anyone with this code can join until the room is full or you issue a new code.`),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn btn--primary', type: 'button', disabled: !code, onclick: async () => toast(await copyText(shareText) ? 'Invitation copied.' : 'Could not copy.', { type: 'info' }) }, icon('copy'), 'Copy invitation'),
         navigator.share ? h('button', { class: 'btn', type: 'button', disabled: !code, onclick: () => navigator.share({ title: 'VEXLANE', text: shareText }).catch(() => {}) }, icon('share'), 'Share') : null));
@@ -117,6 +117,12 @@ export function openRoomSheet({ getState, actions, onClose }) {
         ? h('label', { class: 'switch' },
           h('span', {}, h('strong', {}, 'Turn alerts'), h('br'), h('span', { class: 'muted small' }, 'A popup and vibration before turns, roundabouts and the destination. No sound. Works only while the screen is on.')),
           h('input', { type: 'checkbox', checked: s.guidance, onchange: (e) => actions.setGuidance(e.currentTarget.checked) }),
+          h('span', { class: 'switch__track', 'aria-hidden': 'true' }))
+        : null,
+      s.regionSupported
+        ? h('label', { class: 'switch' },
+          h('span', {}, h('strong', {}, 'Region alerts'), h('br'), h('span', { class: 'muted small' }, 'A short popup with the weather shortly before you enter another kabupaten or kota. Needs internet.')),
+          h('input', { type: 'checkbox', checked: s.regionAlerts, onchange: (e) => actions.setRegionAlerts(e.currentTarget.checked) }),
           h('span', { class: 'switch__track', 'aria-hidden': 'true' }))
         : null,
       !s.isOwner ? h('button', { class: 'btn btn--danger', type: 'button', onclick: async () => {

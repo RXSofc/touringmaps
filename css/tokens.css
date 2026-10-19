@@ -1,26 +1,42 @@
 /* Design tokens: VEXLANE Neo-Brutalist system */
 :root {
-  /* Palette: black, white, and red. Red is ONLY for cancel / back / close (X) buttons.
-     Every other state (active, live, warning, error, disabled) is told apart by
-     fill (black vs white), border style (solid / dashed / double) and hatching. */
-  --color-black: #000000;
-  --color-white: #FFFFFF;
-  --color-red: #E10600;
-  --color-bg: var(--color-white);
-  --color-surface: var(--color-white);
-  --color-text: var(--color-black);
-  --color-text-soft: var(--color-black);
-  --color-border: var(--color-black);
-  --color-primary: var(--color-black);          /* filled / active / selected */
-  --color-on-primary: var(--color-white);
-  --color-primary-strong: var(--color-black);
-  --color-secondary: var(--color-black);
-  --color-accent: var(--color-white);
-  --color-muted: var(--color-white);
-  --color-success: var(--color-black);
-  --color-warning: var(--color-white);
-  --color-danger: var(--color-red);             /* cancel / back / close only */
-  --color-on-dark: var(--color-white);
+  /* Palette: five colours from the reference (plus one light tint of Equilibrium for cards).
+       Dark Void   #141616  text, borders, hard shadows
+       Iridium     #3D3C38  filled / active / selected / success
+       Artillery   #746D67  secondary fills, disabled text
+       Equilibrium #A49F9D  page background, muted fills, warnings
+       Falu Red    #7F1D1A  danger, errors, cancel / back / close, off-route, toll warning
+       Paper       #E6E3E1  cards, panels, dock (Equilibrium lightened)
+     Neo-Brutalist rules stay: hard offset shadows, thick borders, no blur. Warnings are told apart
+     by a dashed border, not by another colour. */
+  --ink: #141616;
+  --iridium: #3D3C38;
+  --artillery: #746D67;
+  --equilibrium: #A49F9D;
+  --red: #7F1D1A;
+  --paper: #E6E3E1;
+
+  --color-black: var(--ink);
+  --color-white: var(--paper);
+  --color-red: var(--red);
+  --color-page: var(--equilibrium);             /* page background behind cards */
+  --color-bg: var(--paper);
+  --color-surface: var(--paper);
+  --color-text: var(--ink);
+  --color-text-soft: var(--iridium);
+  --color-border: var(--ink);
+  --color-primary: var(--iridium);              /* filled / active / selected */
+  --color-on-primary: var(--paper);
+  --color-primary-strong: var(--ink);
+  --color-secondary: var(--ink);
+  --color-accent: var(--red);                   /* focus ring */
+  --color-muted: var(--equilibrium);
+  --color-success: var(--iridium);
+  --color-on-success: var(--paper);
+  --color-warning: var(--equilibrium);
+  --color-danger: var(--red);
+  --color-on-danger: var(--paper);
+  --color-on-dark: var(--paper);
 
   /* Typography */
   --font-display: 'Space Grotesk', 'Arial Black', 'Helvetica Neue', Arial, system-ui, sans-serif;

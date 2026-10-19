@@ -6,6 +6,7 @@
 import { MAP_CONFIG, usableProviders } from './map-config.js';
 import { fetchJson, sleep, NetError } from './net.js';
 import { isValidLat, isValidLng, roundTo } from './geo.js';
+import { regionFromNominatim, regionFromPhoton } from './region.js';
 
 export class GeocodeError extends Error {
   /** @param {'empty'|'short'|'timeout'|'network'|'rate-limit'|'service'|'invalid'|'aborted'|'unavailable'} code */
@@ -146,6 +147,16 @@ const ADAPTERS = {
       url.searchParams.set('zoom', '17');
       const data = await fetchJson(url.toString(), { signal, timeoutMs: G.timeoutMs });
       return data && !data.error ? normalizeNominatim({ ...data, lat: data.lat ?? lat, lon: data.lon ?? lng }) : null;
+    },
+    async region(p, lat, lng, signal) {
+      const url = localise(endpoint(p, '/reverse'), p);
+      url.searchParams.set('format', 'jsonv2');
+      url.searchParams.set('lat', String(lat));
+      url.searchParams.set('lon', String(lng));
+      url.searchParams.set('zoom', '14');          // up to suburb level: enough for kabupaten/kota + area
+      url.searchParams.set('addressdetails', '1');
+      const data = await fetchJson(url.toString(), { signal, timeoutMs: G.timeoutMs });
+      return data && !data.error ? regionFromNominatim(data.address) : null;
     }
   },
   photon: {
@@ -164,6 +175,13 @@ const ADAPTERS = {
       const data = await fetchJson(url.toString(), { signal, timeoutMs: G.timeoutMs });
       const f = data?.features?.[0];
       return f ? normalizePhoton(f) : null;
+    },
+    async region(p, lat, lng, signal) {
+      const url = localise(endpoint(p, '/reverse'), p);
+      url.searchParams.set('lat', String(lat));
+      url.searchParams.set('lon', String(lng));
+      const data = await fetchJson(url.toString(), { signal, timeoutMs: G.timeoutMs });
+      return regionFromPhoton(data?.features?.[0]?.properties);
     }
   }
 };
@@ -229,4 +247,18 @@ export async function reverseGeocode(latitude, longitude, { signal } = {}) {
   const named = { name: value.name, address: value.address };
   cache.set(key, named);
   return named;
+}
+
+/**
+ * Which kabupaten/kota (and area) a coordinate is in: {key, label, area} or null.
+ * Shares the provider chain, throttle and cool-down with search; results are cached per ~110 m.
+ */
+const regionCache = new Map();
+export async function reverseRegion(latitude, longitude, { signal } = {}) {
+  const key = `${roundTo(latitude, 3)},${roundTo(longitude, 3)}`;
+  if (regionCache.has(key)) return regionCache.get(key);
+  const { value } = await viaChain((adapter, p) => adapter.region(p, latitude, longitude, signal), signal);
+  regionCache.set(key, value || null);
+  if (regionCache.size > 120) regionCache.delete(regionCache.keys().next().value);
+  return value || null;
 }

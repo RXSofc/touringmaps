@@ -30,10 +30,12 @@ export function isFirebaseConfigured() {
 
 export const APP = Object.freeze({
   name: 'VEXLANE',
-  version: '2026.10.16-6',   // shown on the sign-in screen so you can tell which build is running
+  version: '2026.10.19-2',   // shown on the sign-in screen so you can tell which build is running
 
   limits: Object.freeze({
-    maxMembers: 6,              // enforced by database rules via six fixed slots
+    defaultMembers: 6,          // room size when the owner does not choose
+    minRoomMembers: 2,          // smallest room an owner can create
+    maxRoomMembers: 30,         // largest room (also the number of slot keys the database rules allow)
     minMembersForSession: 2,    // location is only published while >= this many members
     roomName: 60,
     displayName: 40,
@@ -95,9 +97,25 @@ export const APP = Object.freeze({
     passedM: 25,                                   // a maneuver this far behind you is done
     arriveM: 25,                                   // "you have arrived" within this distance of the end
     offRouteM: 40,                                 // farther than this from the route (or 1.5x GPS error)…
-    offRouteFixes: 3,                              // …for this many fixes in a row = off route
-    rerouteMinIntervalMs: 8000,                    // quick re-route after leaving the route, at most this often
+    offRouteFixes: 2,                              // …for this many fixes in a row = off route
+    offRouteFarM: 90,                              // far off (and GPS decent): one fix is enough
+    offRouteFarMaxAccM: 30,                        // …but only when the GPS error is at most this
+    rerouteMinIntervalMs: 3500,                    // quick re-route after leaving the route, at most this often
+    rerouteRetries: 5,                             // if the re-route request fails, retry this many times (backoff)
     vibrate: true
+  }),
+
+  /** "Sebentar lagi memasuki …" popup with the weather of the next kabupaten/kota (js/regionwatch.js). */
+  region: Object.freeze({
+    enabled: true,
+    aheadM: 1500,                 // look this far ahead along the route (or heading): the popup comes 0.8–1.5 km before the border
+    recheckMoveM: 700,            // look again after this much riding…
+    minGapMs: 30000,              // …and at most this often (the geocoder allows ~1 request/s; we use far less)
+    minSpeedMs: 3,                // slower than ~11 km/h (walking, queue, parked): no look-ahead
+    headingConfirm: 2,            // no route: the same next region must show up this many checks in a row
+    hereEveryM: 3000,             // "which region am I in" lookup interval
+    repeatSilenceMs: 1200000,     // the same region is not announced again within 20 minutes
+    popupMs: 7000
   }),
 
   /** How "fresh" a rider's last fix must be to be called live. */

@@ -141,7 +141,18 @@ export const MAP_CONFIG = Object.freeze({
     maxZoom: 18,
     pitch: 60,
     maxPitch: 75,
-    buildingsMinZoom: 14,         // MapLibre zoom (one less than the same Leaflet zoom)
+    // Optional relief (hills and mountains) from free elevation tiles (Terrarium encoding, AWS Open Data,
+    // no key). Off by default; the HILL button turns it on. Heavier for the phone.
+    terrain: Object.freeze({
+      tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+      encoding: 'terrarium',
+      tileSize: 256,
+      maxZoom: 15,
+      exaggeration: 1.3,          // 1 = true scale; a little more reads better on a phone screen
+      errorsBeforeOff: 5,         // elevation tile errors before relief switches itself off
+      attribution: 'Terrain: <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener">Mapzen / AWS Terrain Tiles</a>'
+    }),
+    buildingsMinZoom: 13.5,         // MapLibre zoom (one less than the same Leaflet zoom)
     errorsBeforeFallback: 6,      // source errors before 3D gives up and returns to the flat map
     library: Object.freeze({
       version: '4.7.1',
@@ -172,7 +183,7 @@ export const MAP_CONFIG = Object.freeze({
     providers: ROUTING_PROVIDERS,
     overview: 'full',             // full geometry: turn guidance measures distance along the real road line
     steps: true,                  // turn-by-turn maneuvers (needed for guidance)
-    avoid: ['toll'],              // asked of the server (OSRM `exclude=`). Motorcycles may not use toll roads here.
+    avoid: ['toll', 'motorway'],  // tried in this order (OSRM `exclude=`); a route that still touches toll/motorway is flagged. Motorcycles may not use toll roads here.
     blockClasses: ['toll', 'motorway'], // if the returned route still uses these, it is flagged UNSAFE and guidance is not run
     timeoutMs: 12000,
     cooldownMs: 60000,

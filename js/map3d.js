@@ -14,6 +14,7 @@ import { buildStyle } from './map-style.js';
 import { buildRiderEl, destinationEl, riderSignature, fixOf } from './map.js';
 import { APP } from './config.js';
 import { MotionTrack } from './motion.js';
+import { makeSnapper } from './snap.js';
 
 const V = MAP_CONFIG.vector;
 const toML = (z) => z - 1;
@@ -121,8 +122,10 @@ export class TouringMap3D {
     this.destMarker = null;
     this.previewMarker = null;
     this.routeVisible = true;
+    this.routeDim = false;
     this.lastSelf = null;
     this.lastCam = 0;
+    this.snapper = null;
     this.onVisible = () => { if (!document.hidden) this.kick(); };
     document.addEventListener('visibilitychange', this.onVisible);
 
@@ -147,6 +150,8 @@ export class TouringMap3D {
       this.ready = true;
       for (const id of Object.keys(this.data)) this.map.getSource(id)?.setData(this.data[id]);
       this._applyRouteVisibility();
+      this._applyRouteDim();
+      this._applyTerrain();
     });
     this.map.on('dragstart', (e) => { if (e.originalEvent) handlers.onUserPan?.(); });
     this.map.on('click', (e) => handlers.onMapClick?.({ lat: e.lngLat.lat, lng: e.lngLat.lng }));
@@ -155,6 +160,14 @@ export class TouringMap3D {
   }
 
   _onError(e) {
+    if (e?.sourceId === 'terrain') {
+      this.terrainErrors += 1;
+      if (this.terrainOn && this.terrainErrors >= V.terrain.errorsBeforeOff) {
+        this.setTerrain(false);
+        this.handlers.onTerrainError?.();
+      }
+      return;
+    }
     // Only tile/style failures count. A single missing glyph or tile is normal on a bad connection.
     const sourceError = e?.sourceId === 'openmaptiles' || /style|tilejson|openmaptiles/i.test(String(e?.error?.message || ''));
     if (!sourceError) return;
@@ -171,6 +184,21 @@ export class TouringMap3D {
   _setData(id, fc) {
     this.data[id] = fc;
     if (this.ready) this.map.getSource(id)?.setData(fc);
+  }
+
+  /** Hills and mountains on or off (needs the elevation tiles; switches itself off if they fail). */
+  setTerrain(on) {
+    this.terrainOn = !!on;
+    if (on) this.terrainErrors = 0;
+    this._applyTerrain();
+  }
+
+  _applyTerrain() {
+    if (!this.ready) return;
+    try {
+      this.map.setLayoutProperty('hillshade', 'visibility', this.terrainOn ? 'visible' : 'none');
+      this.map.setTerrain(this.terrainOn ? { source: 'terrain', exaggeration: V.terrain.exaggeration } : null);
+    } catch { /* style not ready: the load handler applies it */ }
   }
 
   /* ----------------------------------------------------------- riders */
@@ -235,7 +263,9 @@ export class TouringMap3D {
     const now = Date.now();
     let busy = false;
     for (const [uid, e] of this.riders) {
-      const s = e.track.sample(now);
+      let s = e.track.sample(now);
+      // my own dot rides on my route line instead of beside it
+      if (e.data.isSelf && this.snapper && this.routeVisible) s = { ...s, ...this.snapper.apply(s, e.data.fix?.accuracy) };
       if (Math.abs(e.lat - s.lat) > 1e-9 || Math.abs(e.lng - s.lng) > 1e-9) {
         e.lat = s.lat; e.lng = s.lng;
         e.marker.setLngLat([s.lng, s.lat]);
@@ -305,11 +335,26 @@ export class TouringMap3D {
 
   setRoute(coords) {
     this.routeCoords = coords || null;
+    this.snapper = coords && coords.length > 1 ? makeSnapper(coords) : null;
     this._setData('route', coords && coords.length > 1 ? lineFeature(coords) : EMPTY);
   }
 
   setOtherRoute(coords) {
     this._setData('route2', coords && coords.length > 1 ? lineFeature(coords) : EMPTY);
+  }
+
+  /** Faded line = "this route is out of date / not usable" (re-routing, or it touches a toll road). */
+  setRouteDim(dim) {
+    this.routeDim = !!dim;
+    this._applyRouteDim();
+  }
+
+  _applyRouteDim() {
+    if (!this.ready) return;
+    const o = this.routeDim ? 0.28 : 1;
+    for (const id of ['route-casing', 'route-line']) {
+      if (this.map.getLayer(id)) this.map.setPaintProperty(id, 'line-opacity', o);
+    }
   }
 
   setRouteVisible(visible) {

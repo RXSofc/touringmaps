@@ -182,7 +182,7 @@
   font-weight: 600;
 }
 .legend__row { display: flex; align-items: center; gap: var(--space-2); }
-.legend__line { width: 1.6rem; height: 6px; background: var(--color-white); border: 2px solid var(--color-border); }
+.legend__line { width: 1.6rem; height: 6px; background: linear-gradient(90deg, #7A1222, #B23A45, #F1D5D5); border: 2px solid #2A070C; }
 
 .rider-panel, .rider-card {
   position: absolute;
@@ -345,3 +345,6 @@
 .maplibregl-ctrl-attrib a { color: var(--color-text) !important; }
 .maplibregl-ctrl-attrib-button { background-color: var(--color-white) !important; }
 .maplibregl-ctrl-bottom-right { z-index: 2; }
+
+.map-controls [hidden] { display: none !important; }
+.btn3d__label--sm { font-size: 0.7rem; letter-spacing: 0; }
