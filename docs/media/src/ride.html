@@ -1,0 +1,80 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=320">
+<link rel="stylesheet" href="../../../css/tokens.css"><link rel="stylesheet" href="../../../css/base.css"><link rel="stylesheet" href="../../../css/components.css">
+<style>
+html,body{margin:0;width:320px;height:640px;overflow:hidden;background:#E4E3E2}
+#stage{position:relative;width:320px;height:640px;overflow:hidden}
+#world{max-width:none!important;height:1500px;position:absolute;left:0;top:0;width:700px;height:1500px;transform-origin:0 0}
+.top{position:absolute;left:8px;right:8px;top:8px;display:flex;gap:6px;z-index:5}
+.top .brand{font:900 14px/1 'Arial Black',system-ui,sans-serif;letter-spacing:-.03em;background:var(--color-surface);border:3px solid var(--ink);padding:6px 9px;box-shadow:3px 3px 0 var(--ink)}
+.alerts{position:absolute;left:8px;right:8px;top:50px;z-index:6;display:grid;gap:6px}
+.dock2{position:absolute;left:0;right:0;bottom:0;height:78px;background:var(--color-surface);border-top:3px solid var(--ink);z-index:7;display:flex;align-items:center;gap:8px;padding:0 10px}
+.dock2 .dest{flex:1;display:grid;gap:3px;border:3px solid var(--ink);padding:7px 9px;background:var(--color-bg);box-shadow:3px 3px 0 var(--ink)}
+.dock2 .dest b{font:800 13px/1.1 var(--font-display)} .dock2 .dest span{font:700 10px/1.2 var(--font-mono)}
+.dock2 .mic{width:48px;height:48px;display:grid;place-items:center;border:3px solid var(--ink);background:var(--iridium);color:var(--paper);box-shadow:3px 3px 0 var(--ink)}
+.toasts2{position:absolute;left:0;right:0;bottom:88px;display:grid;justify-items:center;z-index:8;padding:0 8px}
+.me{position:absolute;left:160px;top:430px;z-index:4;transform:translate(-50%,-50%)}
+.av{width:34px;height:34px;border:3px solid var(--ink);background:var(--iridium);color:var(--paper);display:grid;place-items:center;font:900 15px/1 'Arial Black',sans-serif;box-shadow:0 0 0 2px var(--paper),0 0 0 5px var(--ink)}
+.tag{position:absolute;left:50%;top:44px;transform:translateX(-50%);white-space:nowrap;font:800 9px/1 var(--font-mono);background:var(--paper);border:2px solid var(--ink);padding:2px 5px;text-transform:uppercase}
+.navcard{margin:0;animation:none!important}.toast{animation:none!important}.navcard--now .navcard__icon{animation:none!important}
+</style></head><body>
+<div id="stage">
+ <svg id="world" viewBox="0 0 700 1500" width="700" height="1500">
+  <defs>
+   <linearGradient id="rg" gradientUnits="userSpaceOnUse" x1="300" y1="1300" x2="520" y2="250"><stop offset="0" stop-color="#7A1222"/><stop offset=".55" stop-color="#B23A45"/><stop offset="1" stop-color="#F1D5D5"/></linearGradient>
+   <linearGradient id="rg2" gradientUnits="userSpaceOnUse" x1="470" y1="640" x2="520" y2="250"><stop offset="0" stop-color="#7A1222"/><stop offset=".55" stop-color="#B23A45"/><stop offset="1" stop-color="#F1D5D5"/></linearGradient>
+  </defs>
+  <rect width="700" height="1500" fill="#E4E3E2"/>
+  <path d="M-20 980 C 120 930 180 1010 330 990 L 330 1500 L -20 1500Z" fill="#CFCFCE"/>
+  <g fill="#D3D2D0"><rect x="330" y="1020" width="120" height="110"/><rect x="40" y="520" width="150" height="190"/><rect x="560" y="860" width="110" height="170"/><rect x="40" y="260" width="170" height="150"/><rect x="580" y="450" width="90" height="120"/></g>
+  <g id="roads" fill="none" stroke-linecap="butt" stroke-linejoin="round">
+   <g stroke="#141616" stroke-width="15"><path id="cA" d="M300 1500V800L420 700V250"/><path d="M0 1130H700M0 880H300M420 520H700M120 1500V300M560 1500V900M420 640H540V350"/></g>
+   <g stroke="#E6E3E1" stroke-width="10"><path d="M300 1500V800L420 700V250"/><path d="M0 1130H700M0 880H300M420 520H700M120 1500V300M560 1500V900M420 640H540V350"/></g>
+  </g>
+  <g id="routeG">
+   <path id="rA" d="M300 1300V800L420 700V450L520 350V250" fill="none" stroke="#2A070C" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+   <path id="rAl" d="M300 1300V800L420 700V450L520 350V250" fill="none" stroke="url(#rg)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g id="routeB" opacity="0">
+   <path id="rB" d="M470 640H540V350L520 350V250" fill="none" stroke="#2A070C" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+   <path id="rBl" d="M470 640H540V350L520 350V250" fill="none" stroke="url(#rg2)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g transform="translate(520 250)"><path d="M0 0V-46" stroke="#141616" stroke-width="5"/><path d="M2 -44h30l-6 9 6 9H2z" fill="#7F1D1A" stroke="#141616" stroke-width="3"/><path d="M8 -42h6v6H8zM20 -42h6v6h-6zM14 -36h6v6h-6z" fill="#E6E3E1"/></g>
+  <g id="other"><circle r="9" fill="#746D67" stroke="#141616" stroke-width="3"/></g>
+ </svg>
+ <div class="top"><span class="brand">VEXLANE</span><span class="chip chip--success">LIVE 3</span><span class="chip chip--info">GPS +-6M</span></div>
+ <div class="alerts" id="alerts"></div>
+ <div class="me"><div class="av">A</div><div class="tag">Arif (you)</div></div>
+ <div class="toasts2" id="toasts"></div>
+ <div class="dock2"><div class="dest"><b>Cililin</b><span id="sum">12.4 km  ~21 min*</span></div><div class="mic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><rect x="9" y="3" width="6" height="11"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div></div>
+</div>
+<script>
+const SPEED = 85, ANCHOR = [160, 430];
+const A = [[300,1300],[300,800],[420,700],[420,640]];
+const S = [[420,640],[540,640],[540,350],[520,350],[520,250]];
+const seg = (pts) => { let L=[0]; for (let i=1;i<pts.length;i++) L.push(L[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1])); return {pts,L,total:L[L.length-1]}; };
+const full = seg([...A, ...S.slice(1)]);
+const at = (p,d) => { d=Math.max(0,Math.min(d,p.total)); let i=1; while(i<p.pts.length-1&&p.L[i]<d) i++; const f=(d-p.L[i-1])/((p.L[i]-p.L[i-1])||1); return [p.pts[i-1][0]+(p.pts[i][0]-p.pts[i-1][0])*f, p.pts[i-1][1]+(p.pts[i][1]-p.pts[i-1][1])*f]; };
+const svgI = (d) => `<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="square"><path d="${d}"/></svg>`;
+const RIGHT = 'M6 20V10h10M12 5l5 5-5 5', FLAG='M6 21V4M6 5h12l-3 4 3 4H6';
+function card(cls, icon, dist, title, detail){ return `<div class="navcard ${cls}"><div class="navcard__icon">${svgI(icon)}</div><div class="navcard__body">${dist?`<span class="navcard__dist">${dist}</span>`:''}<strong class="navcard__title">${title}</strong>${detail?`<span class="navcard__detail">${detail}</span>`:''}</div></div>`; }
+const OFFROUTE = `<div class="navcard navcard--offroute"><div class="navcard__body"><strong class="navcard__title">Keluar jalur</strong><span class="navcard__detail">Menghitung ulang rute...</span></div></div>`;
+function render(t){
+  const s = Math.min(t*SPEED, full.total), p = at(full, s);
+  document.getElementById('world').style.transform = `translate(${ANCHOR[0]-p[0]}px,${ANCHOR[1]-p[1]}px)`;
+  const o = at(seg([[300,1300],[300,800],[420,700],[420,450],[520,350],[520,250]]), Math.min(t*SPEED+260, 1100));
+  document.getElementById('other').setAttribute('transform', `translate(${o[0]} ${o[1]})`);
+  const offAt = 9.4, newAt = 12.7;
+  const dim = t>=offAt && t<newAt;
+  document.getElementById('routeG').setAttribute('opacity', t>=newAt?0:(dim?0.28:1));
+  document.getElementById('routeB').setAttribute('opacity', t>=newAt?1:0);
+  let html='';
+  if (t>=3.0 && t<4.6) html = card('navcard--far','M12 20V6M6 12l6-6 6 6','Dalam 300 m','Belok kanan','Jl. Raya Cililin');
+  else if (t>=4.6 && t<6.4) html = card('navcard--now', RIGHT, 'Sekarang','Belok kanan','');
+  else if (dim) html = OFFROUTE;
+  else if (t>=14.4) html = card('navcard--arrive navcard--now', FLAG, '','Tiba di tujuan','Cililin');
+  document.getElementById('alerts').innerHTML = html;
+  document.getElementById('toasts').innerHTML = (t>=1.0 && t<6.0) ? `<div class="toast toast--area"><span class="toast__text"><strong>Sebentar lagi memasuki Kab. Bandung Barat, Cililin</strong><span class="toast__sub">Cerah  30&deg;C</span></span></div>` : '';
+  document.getElementById('sum').textContent = dim ? '12.4 km  rerouting...' : (t>=newAt ? '3.1 km  ~6 min*' : '12.4 km  ~21 min*');
+}
+render(0);
+</script></body></html>

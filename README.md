@@ -1,145 +1,119 @@
-# VEXLANE
+<h1 align="center">VEXLANE</h1>
+<p align="center"><b>One road. One crew.</b></p>
 
-Private, real-time coordination for motorcycle touring groups of 2–30 riders (default 6): live positions on a shared map, one shared destination, a route from each rider's own position, in-app push-to-talk voice, and a Discord backup button.
+<p align="center"><img src="docs/media/splash.gif" width="216" alt="The VEXLANE launch splash: three routes draw themselves, merge into one lane, and the wordmark slams in"></p>
 
-Static site (HTML + CSS + vanilla JS modules) → deploys to **GitHub Pages**, runs inside an **Android WebView** wrapper such as AppMint. No framework, no build step, no server.
+VEXLANE is a web app for motorcycle touring groups. Everybody sees everybody on one map, the group shares one destination, and each rider gets a route from the place they are actually standing, not from where the leader started. It is made to live inside an Android WebView, to be hosted for free on GitHub Pages, and to need no server of ours.
 
-## What works
+It is easiest to understand by what it refuses to do.
 
-| Area | Details |
-|---|---|
-| Accounts | Email/password sign-in, registration, password reset, session restored after refresh, sign out |
-| Profile | Display name, bike, avatar (https link **or** uploaded photo shrunk to ~96 px and stored in the database, so no Firebase Storage/billing needed) |
-| Rooms | Create (random 10-symbol invite code, SHA-256 hashed in the index), join by code with preview, owner picks 2–30 riders (default 6), closed / expired / full / removed errors, copy & share invitation, rotate code, close, delete, remove rider |
-| Live map | Leaflet + OpenStreetMap tiles, avatar markers updated in place, accuracy circle, follow-me, fit-all, destination jump, route toggle, legend, collapsible rider list |
-| GPS | `watchPosition` with configurable options, movement/interval throttling, accuracy gate, permission explainer, denied/unavailable/timeout handling, pause sharing, recovery when the app returns from the background, optional screen wake lock |
-| Presence | `.info/connected` + `onDisconnect()`, server-clock-corrected freshness: riders are shown **live / old fix / lost / offline / not sharing**; old coordinates are never presented as current |
-| Destination | Search by name (Nominatim or Photon), enter coordinates (combined or separate fields), or tap the map; preview marker, editable label, explicit confirm; owner-only by default, optional "all riders" policy; visual notice when it changes |
-| Routing | OSRM route from *your* position, recalculated only on destination change, large movement, leaving the route or manual refresh; error + retry + "Open in Maps" fallback |
-| Voice | Hold the mic button to talk to everyone online (WebRTC, rider-to-rider, mono Opus ~24 kbps, mic open only while held). Signalling via Supabase Realtime Broadcast or Firebase |
-| Discord | Validated `https` Discord invite/channel link (owner-editable) opened outside the app |
-| Security | `firebase/database.rules.json` (membership-gated reads, invite-hash joins, slot-based capacity, owner-only settings) |
+**Three hard refusals**
 
-## Setup (about 15 minutes)
+1. **No toll roads. Ever.** The riders are on motorcycles. Every route request, every reroute, every answer is checked for toll (details below). A route that still touches one is faded out, its guidance is switched off, and the phone buzzes.
+2. **No framework, no build step.** HTML, CSS and vanilla JavaScript modules. Open the folder in a static server and it runs. The only dependencies are Firebase's SDK, Leaflet and, if you tap 3D, MapLibre.
+3. **No server.** Firebase Auth and Realtime Database carry the state, public map services carry the geography, WebRTC carries the voice between phones.
 
-1. **Firebase project** – <https://console.firebase.google.com> → Add project.
-2. **Authentication** → Sign-in method → enable **Email/Password**.
-3. **Realtime Database** → Create database → then open **Rules**, paste the contents of `firebase/database.rules.json`, **Publish**.
-4. **Project settings → Your apps → Web app** → copy the config into `js/config.js` (`firebaseConfig`).
-5. **Authentication → Settings → Authorized domains** → add `YOUR-USERNAME.github.io`.
-6. *(Recommended)* Vendor Leaflet so the app has no CDN dependency: `./scripts/vendor-leaflet.sh`. Without it the app loads Leaflet 1.9.4 from unpkg/jsDelivr.
-7. **GitHub Pages**: push this folder to a repo → Settings → Pages → deploy from branch (`/root`). Open `https://USERNAME.github.io/REPOSITORY/`.
+**Four quiet ones**
 
-All paths are relative and routing uses `#/hash` URLs, so it works under any repository name. `.nojekyll` is included.
+- Navigation never makes a sound. A popup and a vibration, that is all.
+- Old coordinates never pose as current. A rider is shown as live, old fix, lost, offline or not sharing, and a stale dot is drawn faded.
+- No history. The database holds where you are now, not where you have been.
+- No paid service is used silently. Providers that need a key ship as placeholders that stay off until you fill them in.
 
-Local test: `python3 -m http.server 8080` in this folder, then open <http://localhost:8080> (localhost counts as a secure context, so GPS works). Add `localhost` to Firebase authorized domains (it is there by default).
+## A ride in sixteen seconds
 
-## AppMint / Android WebView notes
+<p align="center"><img src="docs/media/ride.gif" width="240" alt="A scripted ride: a region popup with the weather, a turn card, a wrong turn, a red off-route card while the old route fades, then a fresh route"></p>
 
-- Load the **https** GitHub Pages URL (GPS needs a secure context).
-- Grant **location** permission to the wrapper app, and enable geolocation in its WebView settings (AppMint: allow location access / "Geolocation"). The page asks the user first; if Android blocks it, the app shows how to fix it.
-- Enable **external links** (`target="_blank"` / system browser) so the Discord and "Open in Maps" buttons can hand off to Android.
-- Web pages are suspended when the screen locks. Turn on **Room menu → Keep screen on** (Wake Lock) while riding. If you later need *reliable background GPS*, that requires a native Android foreground location service, which a WebView cannot provide.
+This clip is rendered headlessly from the app's own stylesheet with a scripted route. The map in it is drawn, not live tiles, and the numbers are made up. What it shows is real behavior:
 
-## Voice (push-to-talk)
+1. A small popup says the next kabupaten is coming up, with its weather.
+2. The turn card warns 300 m before the turn, then says "Sekarang" at the turn.
+3. The rider takes a wrong turn. After two GPS fixes the app calls it: red card, vibration, and the old line fades instead of disappearing.
+4. A new route is drawn from where the rider is now. If the wrong turn was the wrong road, nobody had to press anything.
 
-How it stays cheap: the microphone opens only when you press the button (and stays warm 12 s so repeat presses are instant), nothing connects until someone talks, audio is sent only while the button is held, and connections close after a minute of silence. Nothing is recorded or stored. Hold mode or tap-to-toggle mode is in Room menu → This device.
+## What is inside
 
-**Signalling** (the tiny handshake that lets two phones find each other; audio never goes through it):
+**The convoy.** A room is made with a random ten-symbol invite code. The owner picks how many riders it holds, from 2 to 30 (default 6), and the database rules enforce that number, not just the screen. Riders join with the code, see a preview first, and can be removed or banned. Positions move through Firebase every 1.5 s or 5 m while riding, 30 s while standing still, and a rider's phone says when it has gone quiet.
 
-- **Supabase (recommended, keeps this off Firebase).** In `js/config.js` → `APP.supabase.url`, paste your Project URL (Supabase → Project Settings → API / Data API → `https://xxxx.supabase.co`). The publishable key is already set (it is meant to be public). It uses Realtime *Broadcast* only: no tables, no SQL, nothing stored. Free tier limits are far above 6 riders.
-- **Firebase (automatic fallback)** when `url` is empty: uses `rooms/{id}/rtc` and `rooms/{id}/voice`, covered by the rules in `firebase/database.rules.json` (publish the updated rules).
+**The map.** Flat by default (Leaflet and OpenStreetMap). Tap 3D for a tilted MapLibre map with extruded buildings, house numbers and a camera that turns with your heading; tap HILL for terrain relief. Your own dot is gently pulled onto your route line, and stays still when you stand still. The route is a muted red that fades to soft white toward the destination.
 
-Supabase broadcast channels are not authenticated per user here (rooms use Firebase Auth). The channel name contains the unguessable room id, and the app ignores any signal from someone who is not a room member, but treat it as "unlisted", not "private". A leaked channel name could let a stranger *disturb* signalling, not hear audio (audio only flows to members the talker's app connects to).
+**Getting there.** Set the destination by searching a place, typing coordinates or tapping the map. Each rider's route comes from OSRM starting at that rider's own position. Leave the route and the reroute starts within about 3.5 seconds, retrying with a growing delay if the signal is bad. Turn alerts (far, near, now) come as a popup plus a vibration.
 
-**TURN (important for mobile data).** STUN-only works on most Wi-Fi/home networks but often fails between two phones on carrier NAT. Add a TURN relay to `APP.voice.iceServers` (Metered, Cloudflare, Twilio, or your own coturn). If a rider cannot be reached the app tells you and suggests Discord.
+**Region alerts.** Shortly before you cross into another kabupaten or kota, a small popup says so, with the weather there:
 
-**AppMint/WebView:** allow *microphone / audio recording* for the wrapper app and enable media playback without a user gesture if offered. Like GPS, voice pauses when the screen locks or the app is backgrounded.
+> **Sebentar lagi memasuki Kab. Bandung Barat, Cililin**
+> Cerah · 30°C
 
-## Map providers (`js/map-config.js`)
+It looks 0.8 to 1.5 km ahead along the route (or along your heading if there is no route), shows once per region, and stays on screen for about seven seconds. Switch it off in the Room menu.
 
-Tiles, geocoding and routing are plain tables in `js/map-config.js`, each with an ordered fallback `chain`. Defaults are free, key-less OpenStreetMap services (OSM tiles, Nominatim → Photon, OSRM demo), which are **for light, development-scale use with no SLA**. Keyed providers (MapTiler, Stadia, LocationIQ, your own OSRM) ship as `YOUR_…` placeholders that are skipped until you fill them in and add them to a chain, so no paid service is used silently. Manual latitude/longitude always works, even when search is down.
+**Talking.** Hold the mic and everyone online hears you: WebRTC straight between phones, mono Opus, microphone open only while the button is held, nothing recorded. Discord stays one tap away as the backup.
 
-**Read [`docs/MAP-PROVIDERS.md`](docs/MAP-PROVIDERS.md)** for exact limits, throttling, fallback behaviour, key-restriction steps and the production checklist. Firebase settings stay in `js/config.js`.
+## The toll rule, in four layers
 
-## Other settings (`js/config.js`)
+Motorcycles are not allowed on toll roads in Indonesia, so a wrong guess here is not a cosmetic bug. The app does not rely on any single check.
 
-- `gps` – high-accuracy fresh fixes, Kalman filter and marker-smoothing settings; `publish` – faster sharing while riding (1.5 s / 5 m), 3 s / 10 m otherwise, 30 s standing still, max accepted accuracy 100 m. See [`docs/GPS.md`](docs/GPS.md) for what it does, simulated results and its limits.
-- `freshness` – a fix older than 75 s is "old", older than 10 min is "lost".
-- `voice`, `supabase` – see Voice above.
+1. The server is asked for a route with `exclude=toll`.
+2. If it still answers with toll or motorway, it is asked again with `exclude=motorway`, then without any exclusion.
+3. Every answer is scanned for the `toll` and `motorway` road classes, and for roads literally named "Tol".
+4. If every option touches one, the route is shown faded, turn guidance is turned off for it, a red warning appears and the phone gives a long vibration. A hiccup from the routing server cannot switch the toll filter off for the rest of the session either.
 
-## Honest limitations
+This depends on what the routing data knows. It is a strong guard, not a guarantee, and the warning exists for the day the data is wrong.
 
-- **Routes are estimates, not navigation.** Public OSRM = car profile, no live traffic, no closures, not verified safe for motorcycles. The UI says so; turn-by-turn is handed to a maps app.
-- **No background tracking** in a browser/WebView (see above). Others see "old fix"/"offline" instead of stale data posing as live.
-- **No push notifications**; changes (new destination, riders joining) are shown in-app only.
-- Avatar links are fetched by other riders' devices (the image host sees their IPs); uploads avoid that.
-- Rules cannot rate-limit. Consider enabling **Firebase App Check** and keep Email Enumeration Protection on.
+## The palette
 
-## Data lifecycle
+<p align="center"><img src="docs/media/palette.png" width="540" alt="Dark Void 141616, Iridium 3D3C38, Artillery 746D67, Equilibrium A49F9D, Falu Red 7F1D1A"></p>
 
-- Position records live at `rooms/{id}/locations/{uid}`: coordinates, accuracy, optional heading/speed, GPS time and server time. Nothing else is stored (no history).
-- Leaving the touring screen, pausing sharing, leaving the room, signing out, or deleting the room removes your position. Presence flips to offline via `onDisconnect()` if the app dies.
-- Deleting a room removes members, positions, destination and invite entry. Other members' personal "recent rooms" shortcut is pruned the next time they open the dashboard.
+Five colors, one light tint of Equilibrium for cards, defined once in `css/tokens.css`. Dark Void for text and borders, Iridium for anything filled or selected, Artillery for secondary fills, Equilibrium for the page and for warnings, Falu Red only for danger, errors, off-route, tolls and the cancel / back / close buttons. Neo-Brutalist rules apply: hard offset shadows, thick borders, no blur. Warnings differ by a dashed border, not by another color.
 
-## Project layout
+## Run your own
+
+About fifteen minutes, no command line needed beyond a static server.
+
+1. Create a Firebase project. Turn on **Authentication, Email/Password**.
+2. Create a **Realtime Database**, open Rules, paste `firebase/database.rules.json`, and **Publish**. Do this again after any update: the room size limit lives in these rules.
+3. Add a Web app, copy its config into `firebaseConfig` in `js/config.js`, and add `YOUR-USERNAME.github.io` to Authorized domains.
+4. Push the folder to a repository and turn on GitHub Pages (branch, root). All paths are relative and routes use `#/hash`, so any repository name works.
+5. Test locally with `python3 -m http.server 8080` and open `http://localhost:8080`. Localhost counts as a secure context, so GPS works.
+
+Wrapping it in an Android WebView (AppMint or similar): load the **https** Pages URL, allow location and microphone for the wrapper, let external links open in the system browser, and keep the screen on while riding (Room menu, Keep screen on). A WebView is paused when the screen locks; reliable background GPS would need a native foreground service.
+
+Voice signalling can use Supabase Realtime Broadcast instead of Firebase: put your project URL in `APP.supabase.url`. Between two phones on mobile data you will probably also need a TURN relay in `APP.voice.iceServers`. Voice diagnostics in the Room menu tells you which of the two is missing.
+
+Everything else (setup details, providers, voice, data lifecycle, manual test checklist) is in [docs/REFERENCE.md](docs/REFERENCE.md), [docs/MAP-PROVIDERS.md](docs/MAP-PROVIDERS.md), [docs/GPS.md](docs/GPS.md) and [docs/GUIDANCE.md](docs/GUIDANCE.md).
+
+## Said out loud
+
+- A route is an estimate. The public OSRM demo uses a car profile, no live traffic, no closures. Turn-by-turn is a helper, not a replacement for looking at the road.
+- Region names and weather come from free public services (Nominatim, Open-Meteo). They are for light use, can be slow or wrong near borders, and the popup simply stays quiet when they fail.
+- The free Firebase plan has hard limits (100 simultaneous connections, 1 GB stored, 10 GB per month of traffic). Every rider's position goes to every other rider, so the traffic grows roughly with the square of the room size: a room of 30 is far heavier than a room of 6.
+- No push notifications and no background tracking in a browser or WebView.
+- The database rules tests in `firebase/tests` need the Firebase emulator. Run them before you trust the capacity limits in production.
+- Most of this was verified in simulation: a fake map library, scripted GPS rides, mocked networks. Real roads, real tiles and real signal are the final judge, so ride a short loop before a long trip.
+
+## Under the hood
 
 ```
-index.html            entry (Leaflet loader + module app)
-manifest.webmanifest  sw.js  .nojekyll  firebase.json
-css/                  tokens, base, components, layout, responsive
-js/                   app, main, router, config, firebase, auth, profile, rooms,
-                      presence, location, permissions, map, map-config, gps-filter, motion, destinations, routing,
-                      voice, signaling, discord, geo, net, ui
-js/views/             setup, auth, dashboard, profile, touring, destinationPanel, roomSheet
-docs/                 MAP-PROVIDERS.md (limits, setup, production checklist)
-firebase/             database.rules.json, README.md, tests/ (rules tests)
-tests/                gps-sim.mjs (simulated ride for the GPS filter and marker motion)
-scripts/              vendor-leaflet.sh
-assets/icons/         icon.svg + PNGs
+index.html, sw.js, manifest.webmanifest     entry, offline shell, install metadata
+css/        tokens (palette), base, components, layout, splash
+js/         router, rooms, presence, location, gps-filter, motion, map, map3d, map-style,
+            routing, guidance, regionwatch, region, weather, destinations, voice, signaling
+js/views/   setup, auth, dashboard, profile, touring, destinationPanel, roomSheet
+firebase/   database.rules.json and its tests
+docs/       reference notes, and media/ with the GIFs and the script that renders them
+tests/      simulations that need no network
 ```
 
-Differences from the suggested structure: screens are JS views behind a hash router (`js/views/`) instead of separate `pages/*.html`, which avoids GitHub Pages 404/base-path issues and keeps Firebase auth state across screens.
+Run the simulations from the repository root:
 
-## Manual test checklist
+```
+node tests/guidance-sim.mjs      turn alerts and off-route detection
+node tests/routing-toll.mjs      the toll layers and the reroute retries
+node tests/regionwatch.mjs       region look-ahead and weather text
+node tests/route-snap.mjs        route colors and the dot snapped to the line
+node tests/motion-deadband.mjs   the avatar standing still
+python3 tests/map3d_test.py      the 3D map against a fake MapLibre (needs Playwright)
+```
 
-0. Voice: two phones, hold the mic on A, B hears it and sees "A is talking"; release, then repeat from B. Test once on mobile data for each rider (TURN).
-1. Register two accounts (two browsers/devices). Create a room on A, join with the code on B.
-2. Both grant location → each sees the other's avatar marker; one rider alone shows "Waiting for riders".
-3. Owner searches "Kawah Putih, Ciwidey" → pick result → confirm; B sees the marker + notice; both get routes. Repeat with `-7.7956, 110.3695`.
-4. Turn Wi-Fi off on B: A sees B as **offline** (not live). B shows the offline banner. Turn it back on.
-5. Lock B's screen for a minute, unlock: B shows the background banner, A saw "old fix" meanwhile.
-6. Owner removes B: B is told, can't reopen the room. Rotate the code and confirm the old code fails.
-7. Run `firebase/tests` (see `firebase/README.md`).
+To regenerate the GIFs: start `python3 -m http.server 8099` in this folder, then `python3 docs/media/src/render.py` (needs Playwright and ffmpeg).
 
-## Turn alerts
-Popup + vibration before turns, roundabouts and arrival, no sound, toll roads avoided. See [docs/GUIDANCE.md](docs/GUIDANCE.md) for thresholds and limits.
-
-### Voice diagnostics
-Room menu → **Voice diagnostics** shows, live: signalling transport, TURN status, mic state, whether audio playback is blocked, and for every audio connection its state, the network path chosen (host / srflx / relay), packets sent or received and an event log. **Copy report** puts it on the clipboard. Take one report from each phone right after trying to talk.
-
-Reading it: `path: relay` means TURN is carrying the audio; no `srflx` candidates means the phone's network blocks STUN; a SEND connection stuck in `connecting`/`failed` while the other phone shows no RECEIVE means the direct path is blocked (add TURN in `APP.voice.iceServers`).
-
-## 3D map
-
-Tap **3D** in the map buttons for a tilted map with 3D buildings that turns with your direction while you follow yourself. Flat map is the default. In 3D, the **HILL** button adds hills and mountains (heavier for the phone, off by default). Details and how to change the tile source: `docs/MAP-PROVIDERS.md`.
-
-## Room size
-
-The owner chooses the maximum number of riders (2 to 30, default 6) when creating a room; it cannot change afterwards. The limit is enforced by the database rules (`slotsAllowed`), so you must **publish the updated `firebase/database.rules.json`** before creating rooms with a size. Rooms created earlier keep their six slots. Bigger rooms cost much more Firebase data (every position goes to every rider) and the in-app voice is a direct connection between phones, so for large groups use Discord for voice.
-
-## Navigation: off-route and toll safety
-
-- Leaving the route is noticed after 2 GPS fixes (1 fix when clearly far away with a good signal); the new route is requested within about 3.5 s. While it is being calculated the old line is faded and the popup says "Menghitung ulang rute…". A failed request is retried with a growing delay.
-- Routes never use toll roads: the server is asked with `exclude=toll`, then `exclude=motorway`; every answer is scanned for `toll`/`motorway` classes and for roads literally named "Tol". If a route still touches one, it is faded, guidance is switched off for it, a red warning appears and the phone vibrates a long pattern.
-
-## Region alerts (weather popup)
-
-Shortly before you cross into another kabupaten/kota a small popup shows, for about 7 seconds, for example:
-`Sebentar lagi memasuki Kab. Bandung Barat, Cililin` / `Cerah · 30°C` (plus "peluang hujan N%" when rain is likely). It appears 0.8–1.5 km before the border; with a route the look-ahead follows the route line, without one it follows the heading (and must see the same region twice). A border crossed without a warning is announced as "Memasuki …". The same region is not repeated within 20 minutes. Switch: Room menu → Region alerts.
-
-Data: region names from the geocoder chain (`reverse` with `addressdetails`, Nominatim by default, shared throttle and cool-down), weather from Open-Meteo (free, no key, non-commercial). Both need internet; when either fails the popup is skipped or shown without the weather line. Tuning: `APP.region` in `js/config.js`. Tests: `node tests/regionwatch.mjs`.
-
-## Colour palette
-
-Five colours from the reference image plus one light tint of Equilibrium for cards, all defined once in `css/tokens.css`: Dark Void `#141616` (text, borders, shadows), Iridium `#3D3C38` (filled / active / selected / success), Artillery `#746D67` (secondary fills), Equilibrium `#A49F9D` (page background, muted fills, warnings), Falu Red `#7F1D1A` (danger, errors, cancel / back / close, off-route, toll warning) and Paper `#E6E3E1` (cards, panels, dock). Warnings differ by a dashed border, not by another colour. The base map stays neutral gray; the route keeps its muted red-to-white gradient.
+The build label is shown at the bottom of the sign-in screens, so you can always tell which version is running on a phone.

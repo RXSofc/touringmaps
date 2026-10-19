@@ -10,7 +10,7 @@
   var trails = [].slice.call(root.querySelectorAll('.sp-trail'));
   var heads = [].slice.call(root.querySelectorAll('.sp-head'));
   var tag = root.querySelector('.sp-tag');
-  var TAGLINE = 'WITH ⛧ EVILVOIDE TEAM';
+  var TAGLINE = 'WITH⛧EVILVOID TEAM';
 
   var START = [200, 500, 800];     // when each rider sets off (ms)
   var DUR = 1500;                  // time to reach the meeting point
