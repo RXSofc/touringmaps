@@ -1,5 +1,5 @@
 <h1 align="center">VEXLANE</h1>
-<p align="center"><b>/b></p>
+<p align="center"><b>/b>   </p>
 
 <p align="center"><img src="docs/media/splash.gif" width="216" alt="The VEXLANE launch splash: three routes draw themselves, merge into one lane, and the wordmark slams in"></p>
 
