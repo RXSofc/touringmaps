@@ -118,8 +118,9 @@ export async function createRoom({ uid, profile, name, discordUrl, capacity }) {
     const settings = { destinationPolicy: 'owner', updatedAt: stamp };
     if (discord) settings.discordInviteUrl = discord;
 
-    await update(ref(db), {
-      [`rooms/${roomId}`]: {
+    // The room (with its chosen size) and everything that points to it, in one atomic write.
+    const write = (withCapacity) => {
+      const room = {
         name: roomName,
         ownerUid: uid,
         status: 'open',
@@ -127,17 +128,37 @@ export async function createRoom({ uid, profile, name, discordUrl, capacity }) {
         createdAt: stamp,
         updatedAt: stamp,
         invite: { code },
-        capacity: cap,
-        slotsAllowed,
         members: { [uid]: memberRecord({ role: 'owner', slot: '0', profile }) },
         slots: { 0: uid },
         settings
-      },
-      [`inviteCodes/${hash}`]: { roomId, roomName, createdBy: uid, status: 'open', expiresAt, capacity: cap },
-      [`users/${uid}/rooms/${roomId}`]: { name: roomName, role: 'owner', joinedAt: stamp },
-      [`users/${uid}/currentRoomId`]: roomId
-    });
-    return { roomId, code };
+      };
+      const invite = { roomId, roomName, createdBy: uid, status: 'open', expiresAt };
+      if (withCapacity) { room.capacity = cap; room.slotsAllowed = slotsAllowed; invite.capacity = cap; }
+      return update(ref(db), {
+        [`rooms/${roomId}`]: room,
+        [`inviteCodes/${hash}`]: invite,
+        [`users/${uid}/rooms/${roomId}`]: { name: roomName, role: 'owner', joinedAt: stamp },
+        [`users/${uid}/currentRoomId`]: roomId
+      });
+    };
+
+    let legacyRules = false;
+    try {
+      await write(true);
+    } catch (err) {
+      if (!isPermissionDenied(err)) throw err;
+      // Almost always: the Firebase rules have not been updated yet, so they refuse the size fields.
+      // A default-size room can still be made in the old format (six slots); other sizes cannot.
+      if (cap === APP.limits.defaultMembers) {
+        try { await write(false); legacyRules = true; } catch { /* fall through to the explanation below */ }
+      }
+      if (!legacyRules) {
+        throw new RoomError('rules-outdated', cap === APP.limits.defaultMembers
+          ? 'The database refused this room. Most likely the Firebase rules were not published yet: open Firebase Console, Realtime Database, Rules, paste firebase/database.rules.json and Publish.'
+          : 'The database refused this room size. The Firebase rules were most likely not published yet: open Firebase Console, Realtime Database, Rules, paste firebase/database.rules.json and Publish. Until then only rooms of 6 riders can be created.');
+      }
+    }
+    return { roomId, code, legacyRules };
   } catch (err) {
     throw mapDbError(err);
   }

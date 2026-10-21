@@ -1,5 +1,5 @@
 <h1 align="center">VEXLANE</h1>
-<p align="center"><b>/b>   </p>
+<p align="center"><b>One road. One crew.</b></p>
 
 <p align="center"><img src="docs/media/splash.gif" width="216" alt="The VEXLANE launch splash: three routes draw themselves, merge into one lane, and the wordmark slams in"></p>
 
@@ -65,12 +65,55 @@ This depends on what the routing data knows. It is a strong guard, not a guarant
 
 Five colors, one light tint of Equilibrium for cards, defined once in `css/tokens.css`. Dark Void for text and borders, Iridium for anything filled or selected, Artillery for secondary fills, Equilibrium for the page and for warnings, Falu Red only for danger, errors, off-route, tolls and the cancel / back / close buttons. Neo-Brutalist rules apply: hard offset shadows, thick borders, no blur. Warnings differ by a dashed border, not by another color.
 
+## Run your own
+
+About fifteen minutes, no command line needed beyond a static server.
+
+1. Create a Firebase project. Turn on **Authentication, Email/Password**.
+2. Create a **Realtime Database**, open Rules, paste `firebase/database.rules.json`, and **Publish**. Do this again after any update: the room size limit lives in these rules.
+3. Add a Web app, copy its config into `firebaseConfig` in `js/config.js`, and add `YOUR-USERNAME.github.io` to Authorized domains.
+4. Push the folder to a repository and turn on GitHub Pages (branch, root). All paths are relative and routes use `#/hash`, so any repository name works.
+5. Test locally with `python3 -m http.server 8080` and open `http://localhost:8080`. Localhost counts as a secure context, so GPS works.
+
+Wrapping it in an Android WebView (AppMint or similar): load the **https** Pages URL, allow location and microphone for the wrapper, let external links open in the system browser, and keep the screen on while riding (Room menu, Keep screen on). A WebView is paused when the screen locks; reliable background GPS would need a native foreground service.
+
+Voice signalling can use Supabase Realtime Broadcast instead of Firebase: put your project URL in `APP.supabase.url`. Between two phones on mobile data you will probably also need a TURN relay in `APP.voice.iceServers`. Voice diagnostics in the Room menu tells you which of the two is missing.
+
+Everything else (setup details, providers, voice, data lifecycle, manual test checklist) is in [docs/REFERENCE.md](docs/REFERENCE.md), [docs/MAP-PROVIDERS.md](docs/MAP-PROVIDERS.md), [docs/GPS.md](docs/GPS.md) and [docs/GUIDANCE.md](docs/GUIDANCE.md).
+
 ## Said out loud
 
 - A route is an estimate. The public OSRM demo uses a car profile, no live traffic, no closures. Turn-by-turn is a helper, not a replacement for looking at the road.
 - Region names and weather come from free public services (Nominatim, Open-Meteo). They are for light use, can be slow or wrong near borders, and the popup simply stays quiet when they fail.
 - The free Firebase plan has hard limits (100 simultaneous connections, 1 GB stored, 10 GB per month of traffic). Every rider's position goes to every other rider, so the traffic grows roughly with the square of the room size: a room of 30 is far heavier than a room of 6.
 - No push notifications and no background tracking in a browser or WebView.
-- The database rules tests in `firebase/tests` need the Firebase emulator. Run them before you trust the capacity limits in production.
+- The database rules tests in `firebase/tests` need the Firebase emulator. `node tests/rules-eval-test.mjs` runs the same create and join scenarios against a small local evaluator of the rules file, which is a good smoke test but not Firebase itself; confirm in the Rules Playground. If you ever see "permission denied" when creating a room, the rules in the console are older than the app: publish `firebase/database.rules.json` again.
 - Most of this was verified in simulation: a fake map library, scripted GPS rides, mocked networks. Real roads, real tiles and real signal are the final judge, so ride a short loop before a long trip.
 
+## Under the hood
+
+```
+index.html, sw.js, manifest.webmanifest     entry, offline shell, install metadata
+css/        tokens (palette), base, components, layout, splash
+js/         router, rooms, presence, location, gps-filter, motion, map, map3d, map-style,
+            routing, guidance, regionwatch, region, weather, destinations, voice, signaling
+js/views/   setup, auth, dashboard, profile, touring, destinationPanel, roomSheet
+firebase/   database.rules.json and its tests
+docs/       reference notes, and media/ with the GIFs and the script that renders them
+tests/      simulations that need no network
+```
+
+Run the simulations from the repository root:
+
+```
+node tests/guidance-sim.mjs      turn alerts and off-route detection
+node tests/routing-toll.mjs      the toll layers and the reroute retries
+node tests/regionwatch.mjs       region look-ahead and weather text
+node tests/route-snap.mjs        route colors and the dot snapped to the line
+node tests/motion-deadband.mjs   the avatar standing still
+python3 tests/map3d_test.py      the 3D map against a fake MapLibre (needs Playwright)
+```
+
+To regenerate the GIFs: start `python3 -m http.server 8099` in this folder, then `python3 docs/media/src/render.py` (needs Playwright and ffmpeg).
+
+The build label is shown at the bottom of the sign-in screens, so you can always tell which version is running on a phone.

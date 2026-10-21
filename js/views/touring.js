@@ -74,7 +74,7 @@ export function touringView(roomId) {
     voiceMode: storage.get('tt.voiceMode') === 'toggle' ? 'toggle' : 'hold',   // hold the button, or tap to start/stop
     guidance: APP.guidance.enabled && storage.get('tt.guidance') !== '0',   // turn alerts (per device)
     map3d: false,               // 3D (MapLibre) map active; remembered per device
-    terrain: storage.get('tt.terrain') === '1',   // hills and mountains on the 3D map
+    terrain: (() => { const v = storage.get('tt.terrain'); return v === '2' && storage.get('tt.terrainFullBad') !== '1' ? 2 : v === '1' || v === '2' ? 1 : 0; })(),   // 3D map hills: 0 off, 1 shading, 2 full terrain
     voiceMicHinted: false,
     backgroundGapMs: null,
     destNotice: null,           // {text}
@@ -257,7 +257,9 @@ export function touringView(roomId) {
     els.btnRoute.setAttribute('aria-pressed', String(state.routeVisible));
     els.btn3d.setAttribute('aria-pressed', String(state.map3d));
     els.btnTerrain.hidden = !state.map3d;
-    els.btnTerrain.setAttribute('aria-pressed', String(state.terrain));
+    els.btnTerrain.setAttribute('aria-pressed', String(state.terrain > 0));
+    if (els.btnTerrain.firstChild) els.btnTerrain.firstChild.textContent = state.terrain === 2 ? 'HILL+' : 'HILL';
+    els.btnTerrain.title = state.terrain === 2 ? 'Full 3D terrain (tap to turn off)' : state.terrain === 1 ? 'Hill shading (tap for full 3D terrain)' : 'Hills (3D map)';
     els.btnLegend.setAttribute('aria-expanded', String(state.legendOpen));
     els.legend.hidden = !state.legendOpen;
 
@@ -848,8 +850,13 @@ export function touringView(roomId) {
       },
       onUserPan: () => { if (state.following) { state.following = false; render(); } },
       onTerrainError: () => {
-        state.terrain = false; storage.set('tt.terrain', '0');
+        state.terrain = 0; storage.set('tt.terrain', '0');
         toast('Hills could not load here, so they are off. The 3D map still works.', { type: 'warning', timeout: 5000 });
+        render();
+      },
+      onTerrainSlow: () => {
+        state.terrain = 1; storage.set('tt.terrain', '1'); storage.set('tt.terrainFullBad', '1');
+        toast('Full 3D terrain was too heavy for this phone, so it went back to hill shading.', { type: 'warning', timeout: 6000 });
         render();
       },
       onTileError: () => {
@@ -874,10 +881,13 @@ export function touringView(roomId) {
   }
 
   function onToggleTerrain() {
-    state.terrain = !state.terrain;
-    storage.set('tt.terrain', state.terrain ? '1' : '0');
+    // off -> hill shading (cheap) -> full 3D terrain (heavy, skipped on phones where it already proved too slow) -> off
+    const fullBad = storage.get('tt.terrainFullBad') === '1';
+    state.terrain = state.terrain === 0 ? 1 : (state.terrain === 1 && !fullBad ? 2 : 0);
+    storage.set('tt.terrain', String(state.terrain));
     map.setTerrain(state.terrain);
-    if (state.terrain) toast('Hills on. This is heavier for the phone: turn it off if the map stutters.', { type: 'info', timeout: 4000 });
+    if (state.terrain === 1) toast(fullBad ? 'Hill shading on.' : 'Hill shading on. Tap HILL again for full 3D terrain (heavier).', { type: 'info', timeout: 3500 });
+    if (state.terrain === 2) toast('Full 3D terrain on. Heavy: it switches itself off if the map gets slow.', { type: 'info', timeout: 4500 });
     render();
   }
 
@@ -1013,6 +1023,10 @@ export function touringView(roomId) {
           renderNow();
           if (state.perm === 'granted') startTracking();
           if (storage.getSession('tt.justCreated') === roomId) { storage.removeSession('tt.justCreated'); openRoom(); }
+          if (storage.getSession('tt.rulesOld') === '1') {
+            storage.removeSession('tt.rulesOld');
+            toast('Firebase rules are not updated yet, so this room is the old kind (6 riders). Publish database.rules.json to choose other sizes.', { type: 'warning', timeout: 9000 });
+          }
         },
         onMeta: (meta) => { state.meta = meta; render(); },
         onMembers: (members) => {

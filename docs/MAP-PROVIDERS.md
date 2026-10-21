@@ -98,6 +98,24 @@ MapLibre map with extruded buildings. The flat map stays the default; the choice
 
 ### Hills and mountains (HILL button, 3D map only)
 
+- Off by default. Tapping HILL cycles three steps: **off, hill shading, full 3D terrain (HILL+), off**. Relief comes from free elevation tiles (Terrarium encoding on AWS Open Data, no key). Settings: `MAP_CONFIG.vector.terrain` in `js/map-config.js` (tile URL, `maxZoom`, `exaggeration`, `errorsBeforeOff`, `slowFrameMs`).
+- **Hill shading** only paints a shaded layer: cheap, fine on mid-range phones. **Full 3D terrain** lifts the ground itself and drapes every layer over it, which is heavy; while it is on, extruded buildings are swapped for flat footprints to save work.
+- Elevation tiles stop at zoom 12 and are stretched beyond that (about 8x fewer tiles to fetch and decode than zoom 15).
+- Safety nets: if elevation tiles keep failing, hills switch off by themselves. If full terrain renders slower than about 9 fps on average (or a few frames take over 0.4 s), it drops back to hill shading by itself, remembers that on this phone (`tt.terrainFullBad`) and skips that step from then on.
+- Not tested against the real library or real tile servers from the build sandbox: check on a device.
+
+### What the 3D map draws (js/map-style.js)
+
+- Buildings: extruded from `render_height` (default 5 m when OpenStreetMap has no height there), shaded darker the taller they are, with ground footprint outlines from zoom 15 and a fixed light from the upper left so walls and roofs separate clearly.
+- Points of interest: dots from zoom 15.5, names from zoom 16. House numbers from zoom 17.5. Water names from zoom 10. Names need the glyph server (`MAP_CONFIG.vector.glyphs`); the dots do not.
+- The detail level is bounded by OpenStreetMap: where nobody mapped building heights or shops, there is nothing to draw.
+
+### Hills and mountains (HILL button, 3D map only)
+
 - Off by default. Turns on real relief from free elevation tiles (Terrarium encoding on AWS Open Data, no key) plus a grayscale hillshade. Settings: `MAP_CONFIG.vector.terrain` in `js/map-config.js` (tile URL, `exaggeration`, `errorsBeforeOff`).
 - It is heavier for the phone (extra tiles and a 3D height mesh). If elevation tiles keep failing, the map switches hills off by itself and keeps working.
 - Not tested against the real library or the real elevation server from the build sandbox: check on a device.
+
+### Buildings that look "missing" in 3D
+
+Two different causes. (1) The map data (OpenStreetMap through OpenFreeMap) simply has no building there: common in villages and newly built areas, and nothing in the app can draw what nobody mapped. (2) In the data format used here, the outline of a building that has separately mapped parts is flagged `hide_3d` so the parts are drawn instead; if the parts do not cover the whole footprint, that area used to stay empty. Flat footprints (layer `building-flat`) are now drawn at every zoom under the extruded buildings, so such buildings show up as flat shapes rather than holes.

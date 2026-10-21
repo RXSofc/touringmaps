@@ -15,7 +15,7 @@ async () => {
     on(e,f){ this.h[e]=f; } addControl(){} getCanvas(){ return this.cv; } getContainer(){ return {clientHeight:600}; }
     getSource(id){ return this.src[id]; } getLayer(){ return {}; } setLayoutProperty(id,k,v){ this.vis[id]=v; } setPaintProperty(id,k,v){ (this.paint ||= {})[id+':'+k]=v; }
     jumpTo(o){ if(o.center) this.c={lng:o.center[0],lat:o.center[1]}; if(o.bearing!==undefined) this.b=o.bearing; if(o.zoom!==undefined) this.z=o.zoom; this.jumps=(this.jumps||0)+1; }
-    easeTo(o){ this.ease=o; } flyTo(o){ this.fly=o; } fitBounds(b,o){ this.fit={b,o}; } setPadding(p){ this.pad=p; } setTerrain(t){ this.terrain=t; }
+    easeTo(o){ this.ease=o; } flyTo(o){ this.fly=o; } fitBounds(b,o){ this.fit={b,o}; } setPadding(p){ this.pad=p; } setTerrain(t){ this.terrain=t; } setLayerZoomRange(id,a,b){ (this.zr ||= {})[id]=[a,b]; }
     getCenter(){ return this.c; } getBearing(){ return this.b||0; } getZoom(){ return this.z; } resize(){ this.resized=true; } remove(){ this.gone=true; } }
   window.maplibregl = { Map, Marker, AttributionControl: class{} };
   const { TouringMap3D } = await import('/js/map3d.js');
@@ -31,8 +31,8 @@ async () => {
   ok(JSON.stringify(st.layers.find(l=>l.id==='route-line').paint['line-gradient']).includes('line-progress'),'route gradient');
   ok(ids.includes('building-3d') && ids.indexOf('route-line')>ids.indexOf('building-3d'),'route above buildings');
 
-  let terrErr=0, panned=0, clicks=[], rider=[], tileErr=0;
-  const m = new TouringMap3D(document.getElementById('m'), {onUserPan:()=>panned++, onMapClick:l=>clicks.push(l), onRiderClick:u=>rider.push(u), onTileError:()=>tileErr++, onTerrainError:()=>terrErr++}, {lat:-6.2,lng:106.8,zoom:16});
+  let slow=0, terrErr=0, panned=0, clicks=[], rider=[], tileErr=0;
+  const m = new TouringMap3D(document.getElementById('m'), {onUserPan:()=>panned++, onMapClick:l=>clicks.push(l), onRiderClick:u=>rider.push(u), onTileError:()=>tileErr++, onTerrainError:()=>terrErr++, onTerrainSlow:()=>slow++}, {lat:-6.2,lng:106.8,zoom:16});
   ok(Math.abs(inst.z-15)<1e-9,'zoom conversion (leaflet 16 -> ml 15), got '+inst.z);
   ok(inst.o.pitch===60,'pitch');
   ok(Math.abs(m.getView().zoom-16)<1e-9,'getView round trip');
@@ -74,6 +74,18 @@ async () => {
   ok(inst.terrain===null||inst.terrain===undefined,'terrain off by default');
   m.setTerrain(true); ok(inst.terrain && inst.terrain.source==='terrain' && inst.terrain.exaggeration>1,'terrain on'); ok(inst.vis['hillshade']==='visible','hillshade shown');
   m.setTerrain(false); ok(inst.terrain===null && inst.vis['hillshade']==='none','terrain off again');
+  // hill levels: 1 = shading only (no mesh), 2 = full terrain with flat buildings, watchdog drops 2 -> 1 when frames are slow
+  m.setTerrain(1); ok(inst.terrain===null && inst.vis['hillshade']==='visible' && inst.vis['building-3d']!=='none','level 1: shading only, 3D buildings kept');
+  m.setTerrain(2); ok(inst.terrain && inst.vis['building-3d']==='none' && inst.vis['building-outline']==='none','level 2: terrain mesh, extrusions swapped for the flat footprints');
+  { const flat=st.layers.find(l=>l.id==='building-flat'); ok(flat && flat.maxzoom===undefined && flat.minzoom===13,'flat footprints exist at every zoom (no hole where hide_3d outlines have partial parts)'); }
+  { let T=0; const real=performance.now.bind(performance); performance.now=()=>T; m.setTerrain(2);
+    for(const dt of [1600,500,500,500]){ T+=dt; inst.h.render&&inst.h.render(); }
+    performance.now=real;
+    ok(slow===1 && m.terrainLevel===1 && inst.terrain===null && inst.vis['hillshade']==='visible','slow frames drop full terrain to shading once, got '+slow+' level '+m.terrainLevel);
+    let T2=0; performance.now=()=>T2; m.setTerrain(2);
+    for(let i=0;i<60;i++){ T2+= i===0?1600:16; inst.h.render&&inst.h.render(); }
+    performance.now=real; ok(slow===1 && m.terrainLevel===2,'a smooth map keeps full terrain'); }
+  m.setTerrain(0); ok(inst.terrain===null && inst.vis['hillshade']==='none' && inst.vis['building-3d']==='visible','off restores everything');
   m.setTerrain(true); for(let i=0;i<5;i++) inst.h.error({sourceId:'terrain',error:{message:'x'}});
   ok(terrErr===1 && inst.terrain===null,'bad elevation tiles switch hills off once, got '+terrErr); ok(tileErr===0,'terrain errors do not count as map errors');
   ok(st.sources.terrain.type==='raster-dem' && st.sources.terrain.encoding==='terrarium','terrain source'); ok(ids.includes('hillshade') && ids.indexOf('hillshade')<ids.indexOf('road-primary'),'hillshade under roads');

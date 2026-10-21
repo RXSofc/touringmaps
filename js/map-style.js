@@ -56,9 +56,11 @@ export function buildStyle() {
     }
   });
 
-  // flat footprints first (cheap when zoomed out), extrusions take over close up
+  // Flat footprints at every zoom: cheap, and they sit under the extrusions. Where the map data marks a building
+  // outline `hide_3d` (its parts are meant to be drawn instead) and the parts do not cover it all, this keeps the
+  // building visible as a flat footprint instead of leaving a hole in the map.
   add({
-    id: 'building-flat', type: 'fill', source: src, 'source-layer': 'building', minzoom: 13, maxzoom: V.buildingsMinZoom,
+    id: 'building-flat', type: 'fill', source: src, 'source-layer': 'building', minzoom: 13,
     paint: { 'fill-color': '#D9D9D9', 'fill-outline-color': '#B5B5B5' }
   });
 

@@ -47,6 +47,8 @@ export function mountInto(node, ...children) {
 const ICONS = {
   locate: '<circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
   fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  minus: '<path d="M5 12h14"/>',
+  'arrow-right': '<path d="M4 12h15M13 6l6 6-6 6"/>',
   'arrow-up': '<path d="M12 20V5M6 11l6-6 6 6"/>',
   'turn-right': '<path d="M7 20v-8a4 4 0 0 1 4-4h8M15 4l4 4-4 4"/>',
   'turn-left': '<path d="M17 20v-8a4 4 0 0 0-4-4H5M9 4L5 8l4 4"/>',

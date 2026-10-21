@@ -30,33 +30,37 @@ export function dashboardView() {
       }
       if (!alive) return;
 
-      const connChip = h('span', { class: 'chip chip--muted', role: 'status' }, h('span', { class: 'dot' }), 'Connecting');
+      const connChip = h('span', { class: 'status', role: 'status' }, h('span', { class: 'status__dot' }), 'Connecting');
       offConn = onConnectionChange((up) => {
-        connChip.className = `chip ${up ? 'chip--success' : 'chip--warning'}`;
-        mountInto(connChip, h('span', { class: `dot ${up ? 'dot--live' : 'dot--stale'}` }), up ? 'Online' : 'Offline');
+        connChip.className = `status ${up ? 'status--up' : 'status--down'}`;
+        mountInto(connChip, h('span', { class: 'status__dot' }), up ? 'Online' : 'Offline');
       });
 
-      const roomsBox = h('div', { class: 'card', 'aria-labelledby': 'rooms-title' });
+      const roomsBox = h('section', { class: 'dcard dcard--rooms', 'aria-labelledby': 'rooms-title' });
       const join = joinCard();
       const create = createCard(profile);
 
-      mountInto(root, h('div', { class: 'page' },
+      mountInto(root, h('div', { class: 'page dash' },
         h('header', { class: 'page__head' },
           h('div', { class: 'page__brand' }, icon('pin'), h('span', {}, 'VEXLANE')),
           h('div', { class: 'page__actions' },
             connChip,
-            h('a', { class: 'btn btn--sm', href: '#/profile', 'aria-label': 'Profile and account' }, icon('user'), h('span', { class: 'hide-sm' }, 'Profile')),
-            h('button', { class: 'btn btn--sm btn--ghost', type: 'button', 'aria-label': 'Sign out', onclick: async (e) => {
+            h('button', { class: 'btn btn--icon btn--sm', type: 'button', 'aria-label': 'Sign out', title: 'Sign out', onclick: async (e) => {
               await withBusy(e.currentTarget, () => logout().catch((err) => toast(err.message, { type: 'error' })));
             } }, icon('logout')))),
-        h('section', { class: 'welcome panel' },
-          avatarImg(profile, user.uid, 'avatar avatar--lg'),
-          h('div', {},
-            h('p', { class: 'tag' }, 'Welcome back'),
-            h('h1', {}, profile.displayName || 'Rider'),
-            h('p', { class: 'muted' }, profile.motorcycle ? `Riding: ${profile.motorcycle}` : 'Set your bike in your profile.'))),
-        h('div', { class: 'grid-2' }, create, join),
-        roomsBox));
+        h('section', { class: 'rider', 'aria-label': 'Your rider card' },
+          h('a', { class: 'rider__photo', href: '#/profile', 'aria-label': 'Open your profile' },
+            avatarImg(profile, user.uid, 'avatar avatar--lg')),
+          h('div', { class: 'rider__body' },
+            h('p', { class: 'rider__hello' }, 'Welcome back,'),
+            h('h1', { class: `rider__name${(profile.displayName || '').length > 12 ? ' rider__name--long' : ''}` }, profile.displayName || 'Rider'),
+            profile.motorcycle
+              ? h('p', { class: 'rider__bike' }, h('span', { class: 'plate', title: 'Your motorcycle' }, profile.motorcycle))
+              : h('p', { class: 'rider__bike' }, h('a', { class: 'plate plate--empty', href: '#/profile' }, 'Add your bike')),
+            h('a', { class: 'rider__edit', href: '#/profile' }, 'Profile and account', icon('arrow-right'))),
+          h('span', { class: 'rider__flag', 'aria-hidden': 'true' })),
+        roomsBox,
+        h('div', { class: 'grid-2' }, create, join)));
 
       await renderRooms(roomsBox, user.uid);
     },
@@ -75,7 +79,7 @@ function createCard(profile) {
   const name = h('input', { class: 'input', id: 'room-name', maxlength: APP.limits.roomName, placeholder: 'Sunday ride to Kawah Putih', autocomplete: 'off' });
   const discord = h('input', { class: 'input', id: 'room-discord', type: 'url', inputmode: 'url', placeholder: 'https://discord.gg/yourInvite', autocomplete: 'off' });
   const discordMsg = h('div', { class: 'field__hint', id: 'room-discord-msg' }, 'Optional. You can add it later.');
-  const size = h('input', { class: 'input input--mono', id: 'room-size', type: 'number', inputmode: 'numeric', min: APP.limits.minRoomMembers, max: APP.limits.maxRoomMembers, step: 1, value: APP.limits.defaultMembers, autocomplete: 'off', 'aria-describedby': 'room-size-msg' });
+  const size = h('input', { class: 'input stepper__input', id: 'room-size', type: 'number', inputmode: 'numeric', min: APP.limits.minRoomMembers, max: APP.limits.maxRoomMembers, step: 1, value: APP.limits.defaultMembers, autocomplete: 'off', 'aria-describedby': 'room-size-msg' });
   const sizeMsg = h('div', { class: 'field__hint', id: 'room-size-msg' });
   const sizeHint = () => {
     const n = Math.trunc(Number(size.value));
@@ -90,6 +94,16 @@ function createCard(profile) {
   };
   size.addEventListener('input', sizeHint);
   sizeHint();
+  const bump = (d) => {
+    const n = Math.trunc(Number(size.value));
+    const base = Number.isFinite(n) ? n : APP.limits.defaultMembers;
+    size.value = Math.min(APP.limits.maxRoomMembers, Math.max(APP.limits.minRoomMembers, base + d));
+    sizeHint();
+  };
+  const stepper = h('div', { class: 'stepper' },
+    h('button', { class: 'btn stepper__btn', type: 'button', 'aria-label': 'Fewer riders', onclick: () => bump(-1) }, icon('minus')),
+    size,
+    h('button', { class: 'btn stepper__btn', type: 'button', 'aria-label': 'More riders', onclick: () => bump(1) }, icon('plus')));
   const error = h('div', { class: 'banner banner--danger', role: 'alert', hidden: true });
   const submit = h('button', { class: 'btn btn--primary btn--block', type: 'submit' }, icon('plus'), 'Create room');
 
@@ -105,8 +119,8 @@ function createCard(profile) {
     }
     discordMsg.className = 'field__hint'; discordMsg.textContent = 'Optional. You can add it later.'; discord.removeAttribute('aria-invalid');
     try {
-      const { roomId } = await withBusy(submit, () => createRoom({ uid: user.uid, profile, name: name.value, discordUrl: url, capacity }));
-      try { sessionStorage.setItem('tt.justCreated', roomId); } catch { /* storage may be blocked */ }
+      const { roomId, legacyRules } = await withBusy(submit, () => createRoom({ uid: user.uid, profile, name: name.value, discordUrl: url, capacity }));
+      try { sessionStorage.setItem('tt.justCreated', roomId); if (legacyRules) sessionStorage.setItem('tt.rulesOld', '1'); } catch { /* storage may be blocked */ }
       navigate(`/room/${roomId}`);
     } catch (err) {
       error.textContent = err.message || 'Could not create the room.';
@@ -115,14 +129,15 @@ function createCard(profile) {
   } },
   error,
   h('div', { class: 'field' }, h('label', { for: 'room-name' }, 'Room name'), name),
-  h('div', { class: 'field' }, h('label', { for: 'room-size' }, 'Maximum riders'), size, sizeMsg),
+  h('div', { class: 'field' }, h('label', { for: 'room-size' }, 'Maximum riders'), stepper, sizeMsg),
   h('div', { class: 'field' }, h('label', { for: 'room-discord' }, 'Discord voice link'), discord, discordMsg),
   submit);
 
-  return h('section', { class: 'card', 'aria-labelledby': 'create-title' },
-    h('h2', { class: 'card__title', id: 'create-title' }, icon('flag'), 'Create a touring room'),
-    h('p', { class: 'muted small' }, `Private. Up to ${APP.limits.maxRoomMembers} riders, joined only with your invite code.`),
-    form);
+  return h('section', { class: 'dcard', 'aria-labelledby': 'create-title' },
+    h('header', { class: 'dcard__head' }, icon('flag'), h('h2', { id: 'create-title' }, 'Create a touring room')),
+    h('div', { class: 'dcard__body' },
+      h('p', { class: 'dcard__lead' }, `Private. Up to ${APP.limits.maxRoomMembers} riders, joined only with your invite code.`),
+      form));
 }
 
 /* ------------------------------------------------------------- Join room */
@@ -167,20 +182,22 @@ function joinCard() {
   h('div', { class: 'field' }, h('label', { for: 'join-code' }, 'Invite code'), input, msg),
   check, result);
 
-  return h('section', { class: 'card', 'aria-labelledby': 'join-title' },
-    h('h2', { class: 'card__title', id: 'join-title' }, icon('users'), 'Join a room'),
-    form);
+  return h('section', { class: 'dcard', 'aria-labelledby': 'join-title' },
+    h('header', { class: 'dcard__head' }, icon('users'), h('h2', { id: 'join-title' }, 'Join a room')),
+    h('div', { class: 'dcard__body' },
+      h('p', { class: 'dcard__lead' }, 'Got a code from the owner? Enter it to see the room first.'),
+      form));
 }
 
 /* ------------------------------------------------------- Recent / current */
 
 async function renderRooms(box, uid) {
-  mountInto(box, h('h2', { class: 'card__title' }, icon('route'), 'Your rooms'), h('div', { class: 'boot' }, h('span', { class: 'spinner' })));
+  mountInto(box, h('header', { class: 'dcard__head' }, icon('route'), h('h2', { id: 'rooms-title' }, 'Your rooms')), h('div', { class: 'dcard__body' }, h('div', { class: 'boot' }, h('span', { class: 'spinner' }))));
   let data;
   try { data = await listMyRooms(uid); }
   catch (err) {
-    mountInto(box, h('h2', { class: 'card__title' }, icon('route'), 'Your rooms'),
-      h('div', { class: 'banner banner--danger', role: 'alert' }, icon('alert'), h('div', { class: 'banner__body' }, 'Could not load your rooms.')));
+    mountInto(box, h('header', { class: 'dcard__head' }, icon('route'), h('h2', { id: 'rooms-title' }, 'Your rooms')),
+      h('div', { class: 'dcard__body' }, h('div', { class: 'banner banner--danger', role: 'alert' }, icon('alert'), h('div', { class: 'banner__body' }, 'Could not load your rooms.'))));
     return;
   }
 
@@ -193,9 +210,13 @@ async function renderRooms(box, uid) {
     else forgetRoomEntry(uid, data.rooms[i].id).catch(() => {});
   }
 
-  const current = rooms.find((r) => r.id === data.currentRoomId);
-  const list = h('ul', { class: 'list' });
+  rooms.sort((x, y) => (y.id === data.currentRoomId) - (x.id === data.currentRoomId));
+  box.classList.toggle('dcard--empty', !rooms.length);
+  const head = h('header', { class: 'dcard__head' }, icon('route'), h('h2', { id: 'rooms-title' }, 'Your rooms'),
+    rooms.length ? h('span', { class: 'dcard__count' }, String(rooms.length)) : null);
+  const list = h('ul', { class: 'tickets' });
   for (const r of rooms) {
+    const isCurrent = r.id === data.currentRoomId;
     const leaveBtn = r.role === 'owner' ? null : h('button', { class: 'btn btn--sm btn--ghost', type: 'button', 'aria-label': `Leave ${r.name}`, onclick: async (e) => {
       const yes = await confirmDialog({ title: 'Leave room?', message: `You will stop sharing your location with “${r.name}” and need a new invite to return.`, confirmLabel: 'Leave', danger: true });
       if (!yes) return;
@@ -205,18 +226,19 @@ async function renderRooms(box, uid) {
         renderRooms(box, uid);
       } catch (err) { toast(err.message || 'Could not leave.', { type: 'error' }); }
     } }, 'Leave');
-    list.append(h('li', { class: 'row' },
-      h('div', { class: 'row__main' },
-        h('div', { class: 'row__title' }, r.name, ' ', r.role === 'owner' ? h('span', { class: 'chip chip--info' }, 'Owner') : null),
-        h('div', { class: 'row__sub' }, `Joined ${formatDate(r.joinedAt)}`)),
-      leaveBtn,
-      h('a', { class: 'btn btn--sm btn--primary', href: `#/room/${r.id}` }, 'Open')));
+    list.append(h('li', { class: `ticket${isCurrent ? ' ticket--current' : ''}` },
+      h('div', { class: 'ticket__main' },
+        h('div', { class: 'ticket__name' }, r.name),
+        h('div', { class: 'ticket__meta' },
+          isCurrent ? h('span', { class: 'ticket__flag' }, h('span', { class: 'status__dot' }), 'Current') : null,
+          r.role === 'owner' ? h('span', { class: 'ticket__flag ticket__flag--owner' }, 'Owner') : null,
+          h('span', {}, `Joined ${formatDate(r.joinedAt)}`))),
+      h('div', { class: 'ticket__acts' },
+        leaveBtn,
+        h('a', { class: `btn btn--sm ${isCurrent ? 'ticket__go' : 'btn--primary'}`, href: `#/room/${r.id}` }, isCurrent ? 'Resume' : 'Open'))));
   }
 
-  mountInto(box,
-    h('h2', { class: 'card__title', id: 'rooms-title' }, icon('route'), 'Your rooms'),
-    current ? h('div', { class: 'banner banner--success current-room' }, icon('pin'),
-      h('div', { class: 'banner__body' }, h('strong', {}, 'Current room: '), current.name),
-      h('a', { class: 'btn btn--sm btn--primary', href: `#/room/${current.id}` }, 'Resume')) : null,
-    rooms.length ? list : h('div', { class: 'empty' }, 'No rooms yet. Create one or join with a code.'));
+  mountInto(box, head,
+    h('div', { class: 'dcard__body' },
+      rooms.length ? list : h('p', { class: 'dcard__lead' }, 'No rooms yet. Create one or join with a code.')));
 }

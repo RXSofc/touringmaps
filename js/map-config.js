@@ -147,9 +147,10 @@ export const MAP_CONFIG = Object.freeze({
       tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
       encoding: 'terrarium',
       tileSize: 256,
-      maxZoom: 15,
+      maxZoom: 12,                // elevation tiles stop here and are stretched beyond: about 8x fewer tiles to fetch and decode
       exaggeration: 1.3,          // 1 = true scale; a little more reads better on a phone screen
       errorsBeforeOff: 5,         // elevation tile errors before relief switches itself off
+      slowFrameMs: 110,           // full 3D terrain: average frame slower than this (about 9 fps) drops back to hill shading
       attribution: 'Terrain: <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener">Mapzen / AWS Terrain Tiles</a>'
     }),
     buildingsMinZoom: 13.5,         // MapLibre zoom (one less than the same Leaflet zoom)

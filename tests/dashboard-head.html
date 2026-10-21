@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="../css/tokens.css"><link rel="stylesheet" href="../css/base.css"><link rel="stylesheet" href="../css/components.css"><link rel="stylesheet" href="../css/layout.css">
+</head><body><div id="root"></div>
+<script type="module">
+import { h, icon, mountInto, avatarImg } from '../js/ui.js';
+const q = new URLSearchParams(location.search);
+const profile = { displayName: q.get('name') || 'ARIQ3GP', motorcycle: q.has('nobike') ? '' : (q.get('bike') || 'Beat Deluxe 140cc') };
+const up = q.get('conn') !== 'down';
+mountInto(document.getElementById('root'), h('div', { class: 'page' },
+  h('header', { class: 'page__head' },
+    h('div', { class: 'page__brand' }, icon('pin'), h('span', {}, 'VEXLANE')),
+    h('div', { class: 'page__actions' },
+      h('span', { class: `status ${up ? 'status--up' : 'status--down'}`, role: 'status' }, h('span', { class: 'status__dot' }), up ? 'Online' : 'Offline'),
+      h('button', { class: 'btn btn--icon btn--sm', type: 'button', 'aria-label': 'Sign out' }, icon('logout')))),
+  h('section', { class: 'rider' },
+    h('a', { class: 'rider__photo', href: '#/profile' }, h('img', { class: 'avatar avatar--lg', alt: '', src: '../assets/icons/icon.svg' })),
+    h('div', { class: 'rider__body' },
+      h('p', { class: 'rider__hello' }, 'Welcome back,'),
+      h('h1', { class: 'rider__name' + (profile.displayName.length > 12 ? ' rider__name--long' : '') }, profile.displayName),
+      profile.motorcycle ? h('p', { class: 'rider__bike' }, h('span', { class: 'plate' }, profile.motorcycle)) : h('p', { class: 'rider__bike' }, h('a', { class: 'plate plate--empty', href: '#/profile' }, 'Add your bike')),
+      h('a', { class: 'rider__edit', href: '#/profile' }, 'Profile and account', icon('arrow-right'))),
+    h('span', { class: 'rider__flag' }))));
+</script></body></html>

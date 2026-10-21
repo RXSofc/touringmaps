@@ -123,6 +123,7 @@ export class TouringMap3D {
     this.previewMarker = null;
     this.routeVisible = true;
     this.routeDim = false;
+    this.terrainLevel = 0;     // 0 off, 1 hill shading only (cheap), 2 full 3D terrain mesh (heavy)
     this.lastSelf = null;
     this.lastCam = 0;
     this.snapper = null;
@@ -162,7 +163,7 @@ export class TouringMap3D {
   _onError(e) {
     if (e?.sourceId === 'terrain') {
       this.terrainErrors += 1;
-      if (this.terrainOn && this.terrainErrors >= V.terrain.errorsBeforeOff) {
+      if (this.terrainLevel > 0 && this.terrainErrors >= V.terrain.errorsBeforeOff) {
         this.setTerrain(false);
         this.handlers.onTerrainError?.();
       }
@@ -186,19 +187,50 @@ export class TouringMap3D {
     if (this.ready) this.map.getSource(id)?.setData(fc);
   }
 
-  /** Hills and mountains on or off (needs the elevation tiles; switches itself off if they fail). */
+  /**
+   * Hills: 0 = off, 1 = hill shading only (cheap: just a shaded layer), 2 = full 3D terrain (the ground itself is
+   * lifted, and every layer is draped over it: heavy on mid-range GPUs). `true` means 2, `false` means 0.
+   * Needs the elevation tiles and switches itself off if they fail; level 2 also watches its own frame rate.
+   */
   setTerrain(on) {
-    this.terrainOn = !!on;
-    if (on) this.terrainErrors = 0;
+    const level = on === true ? 2 : !on ? 0 : Math.min(2, Math.max(0, Number(on) | 0));
+    this.terrainLevel = level;
+    if (level) this.terrainErrors = 0;
     this._applyTerrain();
   }
 
   _applyTerrain() {
     if (!this.ready) return;
-    try {
-      this.map.setLayoutProperty('hillshade', 'visibility', this.terrainOn ? 'visible' : 'none');
-      this.map.setTerrain(this.terrainOn ? { source: 'terrain', exaggeration: V.terrain.exaggeration } : null);
-    } catch { /* style not ready: the load handler applies it */ }
+    const level = this.terrainLevel;
+    const full = level >= 2;
+    const tryDo = (fn) => { try { fn(); } catch { /* style not ready: the load handler applies it */ } };
+    tryDo(() => this.map.setLayoutProperty('hillshade', 'visibility', level >= 1 ? 'visible' : 'none'));
+    tryDo(() => this.map.setTerrain(full ? { source: 'terrain', exaggeration: V.terrain.exaggeration } : null));
+    // Under a terrain mesh the extruded buildings and their outlines are the costly part: flat footprints instead.
+    tryDo(() => this.map.setLayoutProperty('building-3d', 'visibility', full ? 'none' : 'visible'));
+    tryDo(() => this.map.setLayoutProperty('building-outline', 'visibility', full ? 'none' : 'visible'));
+    if (full) this._watchStart(); else this._watch = null;
+  }
+
+  /** Full terrain only: if the map renders too slowly, drop back to hill shading by itself. */
+  _watchStart() {
+    this._watch = { last: 0, n: 0, sum: 0, t0: performance.now() };
+    if (!this._renderHook) { this._renderHook = () => this._watchTick(); this.map.on('render', this._renderHook); }
+  }
+
+  _watchTick() {
+    const w = this._watch;
+    if (!w || this.terrainLevel < 2) return;
+    const now = performance.now();
+    if (w.last && now - w.last < 5000) { w.n += 1; w.sum += now - w.last; }   // longer gaps are the map sitting idle
+    w.last = now;
+    if (now - w.t0 < 1500) { w.n = 0; w.sum = 0; return; }                    // tiles are still arriving
+    const mean = w.n ? w.sum / w.n : 0;
+    if ((w.n >= 3 && mean > 400) || (w.n >= 12 && mean > V.terrain.slowFrameMs)) {
+      this._watch = null;
+      this.setTerrain(1);
+      this.handlers.onTerrainSlow?.();
+    } else if (w.n >= 40 || now - w.t0 > 30000) this._watch = null;           // it copes: stop measuring
   }
 
   /* ----------------------------------------------------------- riders */

@@ -1,0 +1,16 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<script type="importmap">{"imports":{"/js/rooms.js":"/tests/stub-rooms.js"}}</script>
+<link rel="stylesheet" href="../css/tokens.css"><link rel="stylesheet" href="../css/base.css"><link rel="stylesheet" href="../css/components.css"><link rel="stylesheet" href="../css/layout.css"><link rel="stylesheet" href="../css/responsive.css">
+</head><body><div class="app" id="app"></div>
+<script type="module">
+import { openRoomSheet } from '/js/views/roomSheet.js';
+const q = new URLSearchParams(location.search);
+const owner = !q.has('member');
+const noop = () => {};
+openRoomSheet({
+  getState: () => ({ uid: 'u1', isOwner: owner, meta: { name: 'test', inviteCode: 'WWQSN5K6GZ', status: q.has('closed') ? 'closed' : 'open', capacity: 6 },
+    members: { u1: { displayName: 'ariq3gp', role: owner ? 'owner' : 'member', motorcycle: 'Beat Deluxe 140cc', joinedAt: 1 }, u2: { displayName: 'Dimas', role: owner ? 'member' : 'owner', motorcycle: 'NMAX', joinedAt: 2 } },
+    banned: owner ? { u9: { name: 'Budi' } } : {}, settings: { destinationPolicy: 'owner', discordInviteUrl: '' }, memberCount: 2,
+    keepAwake: true, voiceSupported: true, voiceMode: 'hold', guidanceSupported: true, guidance: true, regionSupported: true, regionAlerts: true }),
+  actions: new Proxy({}, { get: () => noop }), onClose: noop });
+</script></body></html>

@@ -1,0 +1,26 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="../css/tokens.css"><link rel="stylesheet" href="../css/base.css"><link rel="stylesheet" href="../css/components.css"><link rel="stylesheet" href="../css/layout.css"><link rel="stylesheet" href="../css/responsive.css">
+</head><body><div id="root"></div>
+<script type="module">
+import { h, icon, mountInto } from '../js/ui.js';
+const empty = new URLSearchParams(location.search).has('empty');
+const rooms = empty ? [] : [['Sunday ride to Kawah Putih Ciwidey', 'owner', true], ['Touring Pangandaran', 'member', false]];
+const ticket = ([n, role, cur]) => h('li', { class: 'ticket' + (cur ? ' ticket--current' : '') },
+  h('div', { class: 'ticket__main' }, h('div', { class: 'ticket__name' }, n),
+    h('div', { class: 'ticket__meta' }, cur ? h('span', { class: 'ticket__flag' }, h('span', { class: 'status__dot' }), 'Current') : null, role === 'owner' ? h('span', { class: 'ticket__flag ticket__flag--owner' }, 'Owner') : null, h('span', {}, 'Joined 20 Okt 2026'))),
+  h('div', { class: 'ticket__acts' }, role === 'owner' ? null : h('button', { class: 'btn btn--sm btn--ghost' }, 'Leave'), h('a', { class: 'btn btn--sm ' + (cur ? 'ticket__go' : 'btn--primary'), href: '#' }, cur ? 'Resume' : 'Open')));
+const card = (ic, t, ...body) => h('section', { class: 'dcard' }, h('header', { class: 'dcard__head' }, icon(ic), h('h2', {}, t)), h('div', { class: 'dcard__body' }, ...body));
+const inp = (id, label, ph, extra = {}) => h('div', { class: 'field' }, h('label', { for: id }, label), h('input', { class: 'input', id, placeholder: ph, ...extra }));
+mountInto(document.getElementById('root'), h('div', { class: 'page dash' },
+  h('section', { class: 'dcard dcard--rooms' + (empty ? ' dcard--empty' : '') }, h('header', { class: 'dcard__head' }, icon('route'), h('h2', {}, 'Your rooms'), rooms.length ? h('span', { class: 'dcard__count' }, String(rooms.length)) : null),
+    h('div', { class: 'dcard__body' }, rooms.length ? h('ul', { class: 'tickets' }, rooms.map(ticket)) : h('p', { class: 'dcard__lead' }, 'No rooms yet. Create one or join with a code.'))),
+  h('div', { class: 'grid-2' },
+    card('flag', 'Create a touring room', h('p', { class: 'dcard__lead' }, 'Private. Up to 30 riders, joined only with your invite code.'),
+      h('form', { class: 'form' }, inp('a', 'Room name', 'Sunday ride to Kawah Putih'),
+        h('div', { class: 'field' }, h('label', {}, 'Maximum riders'), h('div', { class: 'stepper' }, h('button', { class: 'btn stepper__btn', type: 'button' }, icon('minus')), h('input', { class: 'input stepper__input', type: 'number', value: 6 }), h('button', { class: 'btn stepper__btn', type: 'button' }, icon('plus'))), h('div', { class: 'field__hint' }, 'How many riders can join. It cannot be changed later.')),
+        inp('b', 'Discord voice link', 'https://discord.gg/yourInvite'),
+        h('button', { class: 'btn btn--primary btn--block', type: 'submit' }, icon('plus'), 'Create room'))),
+    card('users', 'Join a room', h('p', { class: 'dcard__lead' }, 'Got a code from the owner? Enter it to see the room first.'),
+      h('form', { class: 'form' }, inp('c', 'Invite code', 'XXXXX-XXXXX', { class: 'input input--mono input--code' }), h('button', { class: 'btn btn--accent btn--block', type: 'submit' }, icon('search'), 'Check code')))))
+);
+</script></body></html>

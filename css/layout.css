@@ -26,16 +26,51 @@
 .grid-2 { display: grid; gap: var(--space-4); align-items: start; }
 .grid-2-tight { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 
-.welcome {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  background: var(--color-primary);
-  color: var(--color-on-primary);
+.status { display: inline-flex; align-items: center; gap: 0.45rem; font: 700 0.8rem/1 var(--font-display); letter-spacing: 0.02em; color: var(--color-text); }
+.status__dot { width: 0.65rem; height: 0.65rem; border-radius: 50%; border: 2px solid var(--color-border); background: var(--color-muted); }
+.status--up .status__dot { background: var(--color-primary); }
+.status--down .status__dot { background: transparent; border-style: dashed; }
+
+/* Rider card: photo flush left, the bike shown as a number plate, a finish-flag edge on the right. */
+.rider {
+  position: relative;
+  display: grid;
+  grid-template-columns: clamp(104px, 31vw, 150px) 1fr;
+  background: var(--color-surface);
+  border: var(--border-2);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
 }
-.welcome h1 { margin: 0; font-size: clamp(1.6rem, 6vw, 2.4rem); overflow-wrap: anywhere; }
-.welcome p { margin: 0; }
+.rider__photo { display: block; background: var(--color-primary); border-right: var(--border-2); min-height: 100%; }
+.rider__photo .avatar { display: block; width: 100%; height: 100%; min-height: 148px; border: 0; border-radius: 0; box-shadow: none; background: var(--color-primary); }
+.rider__body { display: grid; align-content: center; gap: var(--space-2); padding: var(--space-4) calc(var(--space-3) + 14px) var(--space-4) var(--space-3); min-width: 0; }
+.rider__hello { margin: 0; font-size: 0.95rem; font-weight: 500; color: var(--color-text-soft); }
+.rider__name { margin: -0.35rem 0 0; font-size: clamp(1.9rem, 9vw, 2.9rem); line-height: 0.95; letter-spacing: -0.03em; text-transform: uppercase; overflow-wrap: break-word; hyphens: manual; }
+.rider__name--long { font-size: clamp(1.45rem, 6.6vw, 2rem); line-height: 1; }
+.rider__bike { margin: var(--space-1) 0 0; }
+.plate {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.3rem 1.05rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  font: 700 0.95rem/1.25 var(--font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+.plate::before, .plate::after { content: ''; position: absolute; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%; background: var(--color-border); }
+.plate::before { left: 0.4rem; }
+.plate::after { right: 0.4rem; }
+.plate--empty { border-style: dashed; color: var(--color-text-soft); }
+.rider__edit { display: inline-flex; align-items: center; gap: 0.35rem; justify-self: start; min-height: 32px; margin-top: var(--space-1); font-weight: 700; font-size: 0.85rem; color: var(--color-text); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 2px; }
+.rider__edit .icon { width: 1rem; height: 1rem; }
+.rider__flag { position: absolute; top: 0; right: 0; bottom: 0; width: 14px; border-left: 2px solid var(--color-border); background: conic-gradient(var(--color-border) 25%, var(--color-bg) 0 50%, var(--color-border) 0 75%, var(--color-bg) 0) 0 0 / 14px 14px; }
 
 .preview { display: grid; gap: var(--space-2); padding: var(--space-3); background: var(--color-surface); border: 3px dashed var(--color-border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
 .preview h3 { margin: 0; font-size: 1.3rem; }
@@ -348,3 +383,80 @@
 
 .map-controls [hidden] { display: none !important; }
 .btn3d__label--sm { font-size: 0.7rem; letter-spacing: 0; }
+
+/* ============ Dashboard cards (scoped to .dash) ============
+   A card is a slab with a solid header bar. Rooms read as tickets, riders are set with a stepper. */
+.dash .grid-2 { align-items: stretch; }
+.dcard { display: grid; grid-template-rows: auto 1fr; background: var(--color-surface); border: var(--border-2); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; min-width: 0; }
+.dcard--empty { order: 2; }
+.dcard__head { display: flex; align-items: center; gap: var(--space-3); padding: 0.7rem var(--space-4); background: var(--color-primary); color: var(--color-on-primary); border-bottom: var(--border-2); }
+.dcard__head .icon { width: 1.4rem; height: 1.4rem; flex: none; }
+.dcard__head h2 { margin: 0; font-size: 1.15rem; line-height: 1.1; letter-spacing: -0.01em; text-transform: uppercase; }
+.dcard__count { margin-left: auto; min-width: 1.7rem; padding: 0.1rem 0.45rem; text-align: center; font: 700 0.85rem/1.4 var(--font-display); background: var(--color-surface); color: var(--color-text); border: 2px solid var(--color-border); border-radius: var(--radius-sm); }
+.dcard__body { display: grid; gap: var(--space-4); align-content: start; padding: var(--space-4); }
+.dcard__lead { margin: 0; font-size: 0.95rem; }
+.dash .field > label { font-size: 0.95rem; text-transform: none; letter-spacing: 0; }
+.dash .input { min-height: 52px; font-size: 1.05rem; }
+.dash .input:focus { outline: 0; background: var(--color-bg); box-shadow: 4px 4px 0 var(--color-border); transform: translate(-2px, -2px); }
+.dash .input--code { font: 700 1.7rem var(--font-display); letter-spacing: 0.14em; min-height: 64px; border-style: dashed; }
+.dash .input--code::placeholder { opacity: 0.45; font-style: normal; }
+.dash .btn--block { min-height: 52px; }
+
+.stepper { display: grid; grid-template-columns: 56px 1fr 56px; gap: var(--space-2); align-items: stretch; }
+.stepper__btn { min-height: 56px; padding: 0; }
+.stepper__btn .icon { width: 1.4rem; height: 1.4rem; }
+.input.stepper__input { min-height: 56px; text-align: center; font: 700 2rem/1 var(--font-display); padding: 0; -moz-appearance: textfield; appearance: textfield; }
+.stepper__input::-webkit-outer-spin-button, .stepper__input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.tickets { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.ticket { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-3) var(--space-3) calc(var(--space-4) + 12px); background: var(--color-bg); border: 2px solid var(--color-border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+.ticket::before { content: ''; position: absolute; left: 12px; top: 6px; bottom: 6px; border-left: 3px dotted var(--color-border); }
+.ticket--current { background: var(--color-primary); color: var(--color-on-primary); }
+.ticket--current::before { border-left-color: var(--color-on-primary); }
+.ticket__main { min-width: 0; display: grid; gap: 0.2rem; }
+.ticket__name { font: 700 1.25rem/1.15 var(--font-display); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.ticket__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.6rem; font-size: 0.85rem; }
+.ticket__flag { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700; }
+.ticket__flag--owner { padding: 0 0.4rem; border: 2px solid currentColor; border-radius: var(--radius-sm); }
+.ticket__flag .status__dot { background: var(--color-on-primary); border-color: var(--color-on-primary); }
+.ticket__acts { display: flex; align-items: center; gap: var(--space-2); flex: none; }
+.ticket--current .btn--ghost { --btn-fg: var(--color-on-primary); }
+.btn.ticket__go { --btn-bg: var(--color-surface); --btn-fg: var(--color-text); }
+@media (max-width: 420px) { .ticket { flex-wrap: wrap; } .ticket__acts { width: 100%; justify-content: flex-end; } }
+@media (min-width: 760px) { .dash .grid-2 { grid-template-columns: 1fr 1fr; } }
+
+/* ============ Room sheet (scoped to .room-sheet) ============
+   Each group is a slab with a solid header, so nothing relies on dashed dividers. */
+.room-sheet { display: grid; gap: var(--space-4); }
+.rs { background: var(--color-bg); border: 2px solid var(--color-border); border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow: hidden; }
+.rs__head { display: flex; align-items: center; gap: var(--space-2); padding: 0.5rem var(--space-3); background: var(--color-primary); color: var(--color-on-primary); border-bottom: 2px solid var(--color-border); }
+.rs__head .icon { width: 1.15rem; height: 1.15rem; flex: none; }
+.rs__head h3 { margin: 0; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0; }
+.rs__body { display: grid; gap: var(--space-3); padding: var(--space-3); }
+.rs__note { margin: 0; font-size: 0.85rem; color: var(--color-text-soft); }
+.rs__sub { margin: 0; font: 700 0.9rem var(--font-display); }
+.room-sheet .code-display { margin: 0; }
+.btn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-3); }
+.btn-grid .btn { min-width: 0; }
+
+.slots-wrap { display: grid; gap: var(--space-2); }
+.slots-wrap__row { display: flex; justify-content: space-between; gap: var(--space-3); font-size: 0.9rem; }
+.slots { display: flex; flex-wrap: wrap; gap: 4px; }
+.slots__cell { width: 18px; height: 18px; border: 2px solid var(--color-border); border-radius: 3px; background: transparent; }
+.slots__cell.is-full { background: var(--color-primary); }
+
+.rs__riders .row { padding: var(--space-2) 0; }
+.rs__banned { display: grid; gap: var(--space-2); padding-top: var(--space-2); border-top: 2px dotted var(--color-border); }
+
+.settings { display: grid; }
+.setting { align-items: flex-start; padding: var(--space-3) 0; border-bottom: 2px dotted var(--color-border); }
+.setting:first-child { padding-top: 0; }
+.setting:last-child { border-bottom: 0; padding-bottom: 0; }
+.setting__text { display: grid; gap: 0.2rem; min-width: 0; }
+.setting__text strong { font: 700 1rem var(--font-display); }
+.setting__desc { font-size: 0.85rem; line-height: 1.4; color: var(--color-text-soft); }
+.setting .switch__track { margin-top: 2px; }
+.room-sheet > .rs > .rs__body > .setting:only-child { padding: 0; border: 0; }
+
+.danger-zone { display: grid; gap: var(--space-2); padding: var(--space-3); border: 2px dashed var(--color-red); border-radius: var(--radius); }
+.danger-zone p { margin: 0; font-size: 0.85rem; }

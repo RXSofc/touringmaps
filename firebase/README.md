@@ -2,6 +2,8 @@
 
 ## Deploy the rules
 
+**Publish them again after every update.** The room size (`capacity`, `slotsAllowed`) is enforced here: with old rules the database answers "permission denied" when a room is created. The app then creates a default 6-rider room in the old format if it can, and otherwise tells you to publish.
+
 - **Console:** Realtime Database → Rules → paste `database.rules.json` → Publish.
 - **CLI:** `firebase deploy --only database` (uses `../firebase.json`).
 
