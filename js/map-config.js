@@ -121,7 +121,10 @@ export const MAP_CONFIG = Object.freeze({
   view: Object.freeze({
     defaultCenter: [-2.5, 118],   // Indonesia, shown until a position is known
     defaultZoom: 5,
-    followZoom: 16
+    followZoom: 16,
+    followZoom3d: 17.4,         // 3D follow camera (Leaflet zoom units): close, like turn-by-turn navigation
+    followPitch: 65,            // 3D follow camera tilt
+    followAheadM: 120           // when standing still, face the road this far ahead
   }),
 
   tiles: Object.freeze({

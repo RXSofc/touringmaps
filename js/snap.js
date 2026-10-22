@@ -40,6 +40,29 @@ export function makeSnapper(coords) {
       return b;
     },
     /**
+     * Compass bearing of the road ahead: from the nearest point on the route to the point
+     * `distM` metres further along it. Null when off the route or at its very end.
+     */
+    aheadBearing(lat, lng, distM = 120) {
+      const near = this.nearest(lat, lng);
+      if (!near || near.lateral > 60) return null;
+      const mLng = M_LAT * Math.cos(toRad(lat));
+      let px = near.lng; let py = near.lat; let acc = 0;
+      for (let i = near.idx + 1; i < n; i++) {
+        const cx = coords[i][1]; const cy = coords[i][0];
+        const seg = Math.hypot((cx - px) * mLng, (cy - py) * M_LAT);
+        if (acc + seg >= distM) {
+          const t = seg > 0 ? (distM - acc) / seg : 0;
+          px += (cx - px) * t; py += (cy - py) * t; acc = distM;
+          break;
+        }
+        acc += seg; px = cx; py = cy;
+      }
+      if (acc < 8) return null;
+      const dx = (px - near.lng) * mLng; const dy = (py - near.lat) * M_LAT;
+      return ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360;
+    },
+    /**
      * The position to draw. Within 40% of the snap distance the dot sits exactly on
      * the line; farther out the pull fades smoothly to nothing at the snap distance.
      * @param {{lat:number,lng:number}} pos

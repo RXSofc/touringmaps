@@ -57,9 +57,18 @@ async () => {
   m.syncRiders([r1,r2]);
   // follow: heading east -> bearing turns toward 90
   m.setFollow('a'); ok(inst.pad && inst.pad.top>100,'follow padding');
-  await new Promise(r=>setTimeout(r,400));
-  ok(inst.jumps>3 && inst.jumps<20,'follow jumps camera but throttled, got '+inst.jumps); ok(inst.b>0 && inst.b<=90,'bearing turns toward heading, got '+inst.b);
+  ok(inst.ease && inst.ease.zoom===16.4 && inst.ease.pitch===65 && Math.abs(inst.ease.bearing-90)<1,'entering follow swings in close, tilted, facing travel: '+JSON.stringify(inst.ease));
+  await new Promise(r=>setTimeout(r,1300));
+  ok(inst.jumps>3 && inst.jumps<40,'follow jumps camera but throttled, got '+inst.jumps); ok(inst.b>0 && inst.b<=90,'bearing turns toward heading, got '+inst.b);
   const jumps=inst.jumps; m.setFollow(null); ok(inst.pad.top===0,'padding reset');
+  // standing still with a route that runs south: the camera faces the road ahead, not north
+  { m.setRoute([[-6.2,106.8],[-6.21,106.8],[-6.22,106.8]]);
+    m.syncRiders([{...r1,lat:-6.2,lng:106.8,fix:{speed:0,heading:0,measuredAt:Date.now()}},r2]);
+    await new Promise(r=>setTimeout(r,60));
+    m.setFollow('a'); ok(inst.ease && Math.abs(inst.ease.bearing-180)<2,'stationary: faces the route ahead, got '+(inst.ease&&inst.ease.bearing));
+    m.setFollow(null); m.setRoute(null); m.syncRiders([r1,r2]); }
+  // follow requested before the rider exists: it swings in once the rider appears
+  { inst.ease=null; m.syncRiders([r2]); m.setFollow('a'); ok(!inst.ease,'no ease while rider missing'); m.syncRiders([r1,r2]); ok(inst.ease && inst.ease.pitch===65,'swings in once the rider appears'); m.setFollow(null); }
 
   // my dot is pulled onto my route line (4 m beside it)
   { const off = 4/(111320*Math.cos(6.2*Math.PI/180));

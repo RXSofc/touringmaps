@@ -559,7 +559,8 @@ export function touringView(roomId) {
     if (state.following) { state.following = false; render(); return; }
     state.following = true;
     if (state.myFix) {
-      map.panTo(state.myFix.latitude, state.myFix.longitude, MAP_CONFIG.view.followZoom);
+      // 3D: setFollow swings the camera in behind the rider; flat map: just centre
+      if (map.kind !== 'maplibre') map.panTo(state.myFix.latitude, state.myFix.longitude, MAP_CONFIG.view.followZoom);
     } else if (!state.tracking) {
       state.gateDismissed = false;
       startTracking(true);

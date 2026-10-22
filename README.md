@@ -110,8 +110,17 @@ node tests/guidance-sim.mjs      turn alerts and off-route detection
 node tests/routing-toll.mjs      the toll layers and the reroute retries
 node tests/regionwatch.mjs       region look-ahead and weather text
 node tests/route-snap.mjs        route colors and the dot snapped to the line
+node tests/follow-bearing.mjs    which way the 3D follow camera faces
 node tests/motion-deadband.mjs   the avatar standing still
 python3 tests/map3d_test.py      the 3D map against a fake MapLibre (needs Playwright)
+```
+
+Pages that mount the real views against stand-ins for Firebase (serve the folder, open in a browser):
+
+```
+tests/dashboard-real.html        the dashboard with fake sign-in and rooms
+tests/rooms-capacity.html        room size survives create, subscribe and new invite code
+tests/room-sheet.html            the Room sheet
 ```
 
 To regenerate the GIFs: start `python3 -m http.server 8099` in this folder, then `python3 docs/media/src/render.py` (needs Playwright and ffmpeg).

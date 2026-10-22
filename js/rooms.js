@@ -449,7 +449,7 @@ export function subscribeRoom(roomId, uid, handlers) {
     handlers.onMembers?.(members);
     markReady('members');
   });
-  ['name', 'status', 'ownerUid', 'inviteCodeHash', 'createdAt', 'updatedAt'].forEach(metaField);
+  ['name', 'status', 'ownerUid', 'inviteCodeHash', 'createdAt', 'updatedAt', 'capacity'].forEach(metaField);
   listen('invite', (snap) => { meta.inviteCode = snap.val()?.code || null; markReady('invite'); if (readyFired) handlers.onMeta?.({ ...meta }); });
   listen('locations', (snap) => handlers.onLocations?.(snap.val() || {}));
   listen('presence', (snap) => handlers.onPresence?.(snap.val() || {}));

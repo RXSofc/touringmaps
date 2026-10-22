@@ -266,6 +266,7 @@ export class TouringMap3D {
     for (const [uid, entry] of this.riders) {
       if (!seen.has(uid)) { entry.marker.remove(); this.riders.delete(uid); }
     }
+    if (this.pendingEnter && this.pendingEnter === this.followUid && this.riders.has(this.pendingEnter)) this._enterFollow(this.pendingEnter);
     this.kick();
   }
 
@@ -275,14 +276,34 @@ export class TouringMap3D {
     this.followUid = next;
     if (next) {
       // sit the rider in the lower part of the screen so more road ahead is visible
-      const top = Math.round(this.map.getContainer().clientHeight * 0.38);
+      const top = Math.round(this.map.getContainer().clientHeight * 0.4);
       this.map.setPadding({ top, bottom: 0, left: 0, right: 0 });
       this.padded = true;
+      this._enterFollow(next);
     } else if (this.padded) {
       this.map.setPadding({ top: 0, bottom: 0, left: 0, right: 0 });
       this.padded = false;
     }
     this.kick();
+  }
+
+  /** Bearing the follow camera should face: direction of travel while moving, else the road ahead. */
+  _followTarget(s) {
+    if (s.heading !== null && s.speed > 1.5) return s.heading;
+    return this.snapper && this.routeVisible ? this.snapper.aheadBearing(s.lat, s.lng, MAP_CONFIG.view.followAheadM) : null;
+  }
+
+  /** Swing the camera in behind the rider: close, tilted, facing forward. */
+  _enterFollow(uid) {
+    const e = this.riders.get(uid);
+    if (!e) { this.pendingEnter = uid; return; }   // the rider is not on the map yet: swing in as soon as it is
+    this.pendingEnter = null;
+    const s = e.track.sample(Date.now());
+    const target = this._followTarget(s);
+    if (target !== null) this.bearing = target; else this.bearing = norm360(this.map.getBearing());
+    const duration = 900;
+    this.flyUntil = Date.now() + duration + 50;
+    this.map.easeTo({ center: [s.lng, s.lat], zoom: toML(MAP_CONFIG.view.followZoom3d), pitch: MAP_CONFIG.view.followPitch, bearing: this.bearing, duration });
   }
 
   kick() {
@@ -308,16 +329,18 @@ export class TouringMap3D {
         if (this.data.accuracy.features.length && this._accuracyR) this._setData('accuracy', circleFeature(s.lat, s.lng, this._accuracyR));
       }
       if (uid === this.followUid) {
-        // turn toward the direction of travel, only while actually moving
-        if (s.heading !== null && s.speed > 1.2) {
-          const d = angleDiff(s.heading, this.bearing);
+        // turn toward the direction of travel while moving; standing still, face the road ahead
+        const target = this._followTarget(s);
+        if (target !== null) {
+          const d = angleDiff(target, this.bearing);
           this.bearing = norm360(this.bearing + d * 0.08);
         }
         // Every camera move re-renders the whole 3D scene. Only move when something actually
         // changed, and at most ~30 times a second, so taps on the buttons stay responsive.
         const c = this.map.getCenter();
         const moved = Math.abs(c.lat - s.lat) > 2e-7 || Math.abs(c.lng - s.lng) > 2e-7 || Math.abs(angleDiff(this.bearing, this.map.getBearing())) > 0.15;
-        if (moved && now - this.lastCam >= 33) {
+        if (now < (this.flyUntil || 0)) { /* the entry animation is running */ }
+        else if (moved && now - this.lastCam >= 33) {
           this.lastCam = now;
           this.map.jumpTo({ center: [s.lng, s.lat], bearing: this.bearing });
         }

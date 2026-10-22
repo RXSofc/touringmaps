@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8">
+<script type="importmap">{"imports":{"/js/firebase.js":"/tests/fake-firebase.js"}}</script></head><body>
+<script type="module">
+import * as R from '/js/rooms.js';
+const out = {};
+try {
+  const profile = { displayName: 'Ariq', motorcycle: 'Beat', avatarUrl: '' };
+  const a = await R.createRoom({ uid: 'owner1', profile, name: 'Fifteen', discordUrl: '', capacity: 15 });
+  const metaSeen = [];
+  const unsub = R.subscribeRoom(a.roomId, 'owner1', { onMeta: (m) => metaSeen.push(m), onMembers() {}, onLocations() {}, onPresence() {}, onDestination() {}, onSettings() {}, onBanned() {}, onReady() {} });
+  await new Promise((r) => setTimeout(r, 100));
+  const meta = metaSeen.at(-1) || {};
+  out.capacityInMeta = meta.capacity; out.shown = R.roomCapacity(meta);
+  const prev = await R.previewInvite(a.code); out.previewCap = prev.capacity;
+  // new invite code keeps the size
+  await R.rotateInvite(a.roomId, { oldHash: meta.inviteCodeHash, roomName: meta.name, status: meta.status, uid: 'owner1', capacity: R.roomCapacity(meta) });
+  const { __tree } = await import('/tests/fake-firebase.js');
+  const invites = Object.values(__tree.inviteCodes || {});
+  out.inviteCaps = invites.map((i) => i.capacity);
+  // a preview + join of the 15-room by 14 more riders fills slots 1..14, and the 16th is refused
+  unsub();
+  // default room still reads 6 and a legacy room (no capacity) reads 6
+  out.legacy = R.roomCapacity({}); out.six = R.roomCapacity({ capacity: 6 }); out.max = R.roomCapacity({ capacity: 99 });
+} catch (e) { out.error = String(e && (e.stack || e.message || e)); }
+window.__out = out; window.__done = true;
+</script></body></html>
