@@ -17,6 +17,7 @@ import { startRoomPresence, riderStatus, serverNow, serverOffset, onConnectionCh
 import { LocationTracker, LocationPublisher } from '../location.js';
 import { PositionFilter } from '../gps-filter.js';
 import { TurnGuide } from '../guidance.js';
+import { WrongWayWatch } from '../wrongway.js';
 import { queryGeoPermission, watchGeoPermission, describePermission, PERMISSION_HELP, WakeLock } from '../permissions.js';
 import { TouringMap } from '../map.js';
 import { TouringMap3D, loadMapLibre, webglSupported } from '../map3d.js';
@@ -95,6 +96,11 @@ export function touringView(roomId) {
   let stopPresence = null;
   let routeManager = null;
   let guide = null;
+  // Wrong way (off the route, or heading away from the destination): the warning repeats until it is fixed.
+  const wrongWayWatch = new WrongWayWatch({ awayM: APP.guidance.awayM, turnBackM: APP.guidance.awayTurnBackM });
+  let lastWarnAt = 0;
+  let lastMovedAt = 0;
+  let moveRef = null;
   let lastGuidedRoute = null;
   let lastDrawnRoute = null;
   let lastTollWarned = null;
@@ -292,10 +298,37 @@ export function touringView(roomId) {
       dismissible ? h('button', { class: 'btn btn--icon btn--sm btn--ghost btn--cancel', type: 'button', 'aria-label': 'Dismiss', onclick: () => { state.dismissed.add(key); render(); } }, icon('close')) : null);
   }
 
-  const VIBRATION = { far: [120], near: [120, 80, 120], now: [300], arrive: [200, 100, 200], offroute: [80, 60, 80, 60, 80], toll: [400, 120, 400, 120, 400] };
+  const VIBRATION = { far: [120], near: [120, 80, 120], now: [300], arrive: [200, 100, 200], offroute: [80, 60, 80, 60, 80], toll: [400, 120, 400, 120, 400], wrong: [600, 150, 600, 150, 600] };
   function vibrate(kind) {
     if (!APP.guidance.vibrate || !state.guidance) return;
     try { if (typeof navigator.vibrate === 'function') navigator.vibrate(VIBRATION[kind]); } catch { /* not supported in this WebView */ }
+  }
+  const usableRoute = () => !!state.route?.route && state.route.status === 'ok' && !state.route.route.blockedClasses?.length;
+
+  /** Decide whether the rider is going the wrong way: off the route, or (no route to judge by) away from the destination. */
+  function updateWrongWay(fix) {
+    const now = Date.now();
+    if (!moveRef || haversine(moveRef, fix) >= 8) { if (moveRef) lastMovedAt = now; moveRef = { latitude: fix.latitude, longitude: fix.longitude }; }
+    if (Number.isFinite(fix.speed) && fix.speed >= 1.5) lastMovedAt = now;
+    const dest = state.destination;
+    let next = null;
+    if (state.guidance && dest && !guide?.arrived) {
+      if (guide?.offRoute) next = 'off';
+      else if (!usableRoute() && wrongWayWatch.update(fix, dest)) next = 'away';
+      if (usableRoute()) wrongWayWatch.reset();
+    } else wrongWayWatch.reset();
+    if (next === state.wrongWay) return;
+    state.wrongWay = next;
+    if (next === 'away') { lastWarnAt = now; vibrate('wrong'); }
+    if (!next) { try { navigator.vibrate?.(0); } catch { /* ignore */ } }
+  }
+
+  /** Repeats the vibration every few seconds while the rider is still going the wrong way; silent once stopped. */
+  function wrongWayTick() {
+    if (!state.wrongWay || !state.guidance || document.visibilityState !== 'visible') return;
+    const now = Date.now();
+    if (now - lastMovedAt > APP.guidance.warnMovingMs) return;
+    if (now - lastWarnAt >= APP.guidance.warnRepeatMs) { lastWarnAt = now; vibrate('wrong'); }
   }
   const roundTo10 = (m) => (m >= 1000 ? m : Math.max(10, Math.round(m / 10) * 10));
 
@@ -303,6 +336,10 @@ export function touringView(roomId) {
   function navCard() {
     const rt = state.route?.route;
     if (!state.guidance) return null;
+    if (state.wrongWay === 'away') {
+      return h('div', { class: 'navcard navcard--offroute navcard--away', role: 'alert' }, icon('alert'),
+        h('div', { class: 'navcard__body' }, h('strong', { class: 'navcard__title' }, 'Menjauh dari tujuan'), h('span', { class: 'navcard__detail' }, 'Putar balik atau periksa rute.')));
+    }
     if (rt?.blockedClasses?.length) {
       return h('div', { class: 'banner banner--danger', role: 'alert' }, icon('alert'),
         h('div', { class: 'banner__body' }, h('strong', {}, 'Rute ini melewati jalan tol / bebas hambatan. '), 'Motor tidak boleh masuk tol, jadi petunjuk belokan dimatikan untuk rute ini. Pilih tujuan lain atau buka di aplikasi peta.'),
@@ -771,6 +808,7 @@ export function touringView(roomId) {
     if (state.perm !== 'granted') state.perm = 'granted';
     if (state.backgroundGapMs) state.backgroundGapMs = null;
     if (state.guidance) guide?.update(fix);
+    updateWrongWay(fix);
     if (state.regionAlerts) regionWatch?.update(fix, state.route?.route?.coords || null);
     routeManager.updateOrigin(fix);
     publishLatest();
@@ -953,7 +991,7 @@ export function touringView(roomId) {
 
       guide = new TurnGuide(APP.guidance, {
         onAlert: ({ stage, maneuver }) => vibrate(maneuver.step.type === 'arrive' ? 'arrive' : stage),
-        onOffRoute: () => { vibrate('offroute'); routeManager.reroute(APP.guidance.rerouteMinIntervalMs, APP.guidance.rerouteRetries); }
+        onOffRoute: () => { lastWarnAt = Date.now(); vibrate('offroute'); routeManager.reroute(APP.guidance.rerouteMinIntervalMs, APP.guidance.rerouteRetries); }
       });
       cleanups.push(() => { guide = null; try { navigator.vibrate?.(0); } catch { /* ignore */ } });
 
@@ -992,6 +1030,8 @@ export function touringView(roomId) {
         if (state.tracking && Date.now() - state.lastFixEventAt > APP.publish.stationaryIntervalMs && document.visibilityState === 'visible') tracker.refresh();
       }, APP.freshness.uiTickMs);
       cleanups.push(() => clearInterval(tick));
+      const warnTimer = setInterval(wrongWayTick, 500);
+      cleanups.push(() => clearInterval(warnTimer));
 
       document.addEventListener('visibilitychange', onVisibility);
       cleanups.push(() => document.removeEventListener('visibilitychange', onVisibility));

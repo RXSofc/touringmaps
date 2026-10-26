@@ -308,6 +308,9 @@ button.chip--button:active { transform: translate(2px, 2px); }
 .navcard--now, .navcard--arrive { background: var(--color-primary); color: var(--color-on-primary); }
 .navcard--offroute { background: var(--color-danger); color: var(--color-on-danger); font-weight: 600; }
 .navcard--offroute > .icon { width: 28px; height: 28px; flex: none; }
+.navcard--offroute { animation: warnblink 1.2s steps(1, end) infinite; }
+@keyframes warnblink { 0%, 100% { background: var(--color-danger); } 50% { background: var(--color-black); } }
+@media (prefers-reduced-motion: reduce) { .navcard--offroute { animation: none; } }
 .navcard--now .navcard__icon { animation: navpulse 0.9s ease-in-out 2; }
 @keyframes navpulse { 50% { transform: scale(1.12); } }
 @media (prefers-reduced-motion: reduce) { .navcard--now .navcard__icon { animation: none; } }

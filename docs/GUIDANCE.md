@@ -32,3 +32,11 @@ If the destination can only be reached via toll, you get "no toll-free route" in
 - `navigator.vibrate` may be missing in some WebViews; the popup is the primary channel.
 - Each rider has their own route (from their own position). Switch it off per device: Room menu -> Turn alerts.
 - Not yet tested on a real phone/AppMint WebView; tested with simulated GPS only (tests/guidance-sim.mjs).
+
+
+## Wrong-way warning (repeats)
+
+- **Off the route:** the red "Keluar jalur" card stays until you are back on a route, and the phone buzzes (long pattern) every `warnRepeatMs` (4 s) while you keep moving. The re-route runs in parallel.
+- **Away from the destination:** only when there is no usable route (none yet, refused for a toll road, or the request failed). With a route, the route decides; straight-line distance would cry wolf on winding roads. You are "away" once you are `awayM` (150 m) beyond your closest approach; turning back by `awayTurnBackM` (60 m) clears it.
+- **Standing still:** after `warnMovingMs` (8 s) without moving, the buzzing stops; the card stays. Moving again resumes it.
+- Turn alerts off in the Room menu also silences these. No sound, ever.

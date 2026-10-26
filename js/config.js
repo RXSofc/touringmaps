@@ -30,7 +30,7 @@ export function isFirebaseConfigured() {
 
 export const APP = Object.freeze({
   name: 'VEXLANE',
-  version: '2026.10.21-7',   // shown on the sign-in screen so you can tell which build is running
+  version: '2026.10.26-1',   // shown on the sign-in screen so you can tell which build is running
 
   limits: Object.freeze({
     defaultMembers: 6,          // room size when the owner does not choose
@@ -102,7 +102,11 @@ export const APP = Object.freeze({
     offRouteFarMaxAccM: 30,                        // …but only when the GPS error is at most this
     rerouteMinIntervalMs: 3500,                    // quick re-route after leaving the route, at most this often
     rerouteRetries: 5,                             // if the re-route request fails, retry this many times (backoff)
-    vibrate: true
+    vibrate: true,
+    warnRepeatMs: 4000,                            // wrong way (off route / away from the destination): buzz again this often…
+    warnMovingMs: 8000,                            // …but only while the rider is still moving (stopped for this long = quiet)
+    awayM: 150,                                    // no route: this far beyond the closest approach to the destination = "menjauh"
+    awayTurnBackM: 60                              // …and turning back by this much clears it
   }),
 
   /** "Sebentar lagi memasuki …" popup with the weather of the next kabupaten/kota (js/regionwatch.js). */
