@@ -65,4 +65,23 @@ ok('joining with a wrong invite hash is refused');
 { const db = withProfile(apply({}, createOps({ cap: 10 })), B);
   assert.ok(check(db, [{ path: ['rooms', ROOM], value: null }], { uid: U }).ok); assert.ok(!check(db, [{ path: ['rooms', ROOM], value: null }], { uid: B }).ok); }
 ok('only the owner can delete the room');
+
+// ---- avatars: stills stay small, animated GIFs get a bigger (still bounded) allowance
+{ const b64 = (n) => 'A'.repeat(n);
+  const set = (url, uid = U) => [{ path: ['users', uid, 'avatarUrl'], value: url }];
+  const base = withProfile({}, U);
+  assert.ok(check(base, set('https://example.com/me.jpg'), { uid: U }).ok); 
+  assert.ok(check(base, set('data:image/jpeg;base64,' + b64(9000)), { uid: U }).ok);
+  assert.ok(!check(base, set('data:image/jpeg;base64,' + b64(20000)), { uid: U }).ok, 'a big still must be refused');
+  assert.ok(check(base, set('data:image/gif;base64,' + b64(35000)), { uid: U }).ok, 'a GIF up to 40000 chars is allowed');
+  assert.ok(!check(base, set('data:image/gif;base64,' + b64(41000)), { uid: U }).ok, 'a GIF over 40000 chars is refused');
+  assert.ok(!check(base, set('data:image/svg+xml;base64,' + b64(200)), { uid: U }).ok, 'svg data urls are refused');
+  assert.ok(!check(base, set('data:image/gif;base64,<script>'), { uid: U }).ok, 'non-base64 gif is refused');
+  // the copy kept in a room the rider belongs to follows the same rule
+  const room = apply({}, createOps({ cap: 6 }));
+  const mem = (url) => [{ path: ['rooms', ROOM, 'members', U, 'avatarUrl'], value: url }];
+  assert.ok(check(room, mem('data:image/gif;base64,' + b64(35000)), { uid: U }).ok, 'member copy: GIF allowed');
+  assert.ok(!check(room, mem('data:image/gif;base64,' + b64(41000)), { uid: U }).ok, 'member copy: oversize GIF refused');
+  assert.ok(!check(room, mem('data:image/png;base64,' + b64(20000)), { uid: U }).ok, 'member copy: big still refused'); }
+ok('avatar rules: stills <= 15000 chars, GIFs <= 40000 chars, nothing else');
 console.log(`\n${n} passed`);

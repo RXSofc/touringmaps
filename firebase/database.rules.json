@@ -9,7 +9,7 @@
         ".write": "auth != null && auth.uid === $uid",
         ".validate": "newData.hasChildren(['displayName', 'createdAt'])",
         "displayName": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
-        "avatarUrl": { ".validate": "newData.isString() && newData.val().length <= 15000 && (newData.val().matches(/^https:\\/\\/[^ ]+$/) || newData.val().matches(/^data:image\\/(jpeg|png|webp);base64,[A-Za-z0-9+\\/=]+$/))" },
+        "avatarUrl": { ".validate": "newData.isString() && ((newData.val().length <= 15000 && (newData.val().matches(/^https:\\/\\/[^ ]+$/) || newData.val().matches(/^data:image\\/(jpeg|png|webp);base64,[A-Za-z0-9+\\/=]+$/))) || (newData.val().length <= 40000 && newData.val().matches(/^data:image\\/gif;base64,[A-Za-z0-9+\\/=]+$/)))" },
         "motorcycle": { ".validate": "newData.isString() && newData.val().length <= 60" },
         "createdAt": { ".validate": "newData.isNumber()" },
         "updatedAt": { ".validate": "newData.isNumber()" },
@@ -105,7 +105,7 @@
             },
             "avatarUrl": {
               ".write": "auth != null && auth.uid === $uid && root.child('rooms').child($roomId).child('members').child($uid).exists()",
-              ".validate": "newData.isString() && newData.val().length <= 15000 && (newData.val().matches(/^https:\\/\\/[^ ]+$/) || newData.val().matches(/^data:image\\/(jpeg|png|webp);base64,[A-Za-z0-9+\\/=]+$/))"
+              ".validate": "newData.isString() && ((newData.val().length <= 15000 && (newData.val().matches(/^https:\\/\\/[^ ]+$/) || newData.val().matches(/^data:image\\/(jpeg|png|webp);base64,[A-Za-z0-9+\\/=]+$/))) || (newData.val().length <= 40000 && newData.val().matches(/^data:image\\/gif;base64,[A-Za-z0-9+\\/=]+$/)))"
             },
             "motorcycle": {
               ".write": "auth != null && auth.uid === $uid && root.child('rooms').child($roomId).child('members').child($uid).exists()",

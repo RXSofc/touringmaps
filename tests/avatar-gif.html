@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="utf-8">
+<script type="importmap">{"imports":{"/js/firebase.js":"/tests/fake-firebase.js","/js/auth.js":"/tests/stub-auth.js"}}</script></head><body style="background:#A49F9D">
+<img id="shown" width="144" height="144" style="image-rendering:pixelated">
+<script type="module">
+import { resizeImageFile, validateAvatarValue } from '/js/profile.js';
+window.run = async (name, type) => {
+  const buf = await (await fetch('/tests/fixtures/' + name)).arrayBuffer();
+  const file = new File([buf], name, { type });
+  const out = await resizeImageFile(file);
+  return { prefix: out.slice(0, 24), chars: out.length, valid: validateAvatarValue(out).ok, out };
+};
+window.show = (src) => new Promise((res) => { const i = document.getElementById('shown'); i.onload = () => res(true); i.src = src; });
+window.__ready = true;
+</script></body></html>

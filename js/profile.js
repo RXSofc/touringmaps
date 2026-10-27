@@ -2,8 +2,10 @@ import { auth, db, ref, get, set, update, serverTimestamp, updateProfile } from 
 import { APP } from './config.js';
 import { cleanText } from './ui.js';
 import { whenRegistrationSettled } from './auth.js';
+import { compressGif, looksLikeGif } from './gif.js';
 
-const MAX_AVATAR_CHARS = 15000;              // matches database.rules.json
+const MAX_AVATAR_CHARS = 15000;              // still pictures; matches database.rules.json
+const MAX_GIF_CHARS = 40000;                 // animated GIF avatars (they are copied to every rider in the room, so keep them small)
 const UPLOAD_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
@@ -38,9 +40,10 @@ export function validateProfileInput({ displayName, motorcycle, avatarUrl }) {
   return errors;
 }
 
-/** Accepts an https image URL or a data:image/(jpeg|png|webp) URL produced by resizeImageFile(). */
+/** Accepts an https image URL or a data:image/(jpeg|png|webp|gif) URL produced by resizeImageFile(). */
 export function validateAvatarValue(value) {
   const v = String(value).trim();
+  if (/^data:image\/gif;base64,[A-Za-z0-9+/=]+$/.test(v)) return v.length <= MAX_GIF_CHARS ? { ok: true, value: v } : { ok: false, error: 'That GIF is too large.' };
   if (v.length > MAX_AVATAR_CHARS) return { ok: false, error: 'Image data is too large.' };
   if (/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v)) return { ok: true, value: v };
   let url;
@@ -72,6 +75,18 @@ export async function resizeImageFile(file, size = 96) {
   if (!file) throw new Error('No file selected.');
   if (!UPLOAD_MIME.includes(file.type)) throw new Error('Choose a JPEG, PNG, WebP or GIF image.');
   if (file.size > MAX_UPLOAD_BYTES) throw new Error('That image is larger than 8 MB.');
+
+  // An animated GIF keeps moving: it is shrunk by gif.js instead of being redrawn on a canvas (which would freeze it).
+  if (file.type === 'image/gif') {
+    let bytes = null;
+    try { bytes = new Uint8Array(await file.arrayBuffer()); } catch { /* fall through to the still-image path */ }
+    if (bytes && looksLikeGif(bytes)) {
+      let result = null;
+      try { result = compressGif(bytes, { maxChars: MAX_GIF_CHARS }); }
+      catch (err) { if (/shrink/.test(err.message)) throw err; /* unreadable GIF: use it as a still picture */ }
+      if (result) return result.dataUrl;
+    }
+  }
 
   const bitmap = await loadBitmap(file).catch(() => { throw new Error('That image could not be read.'); });
   const w = bitmap.width || bitmap.naturalWidth;
@@ -116,12 +131,19 @@ export async function saveProfile(uid, { displayName, motorcycle, avatarUrl }) {
   const moto = cleanText(motorcycle, APP.limits.motorcycle);
   const avatar = avatarUrl ? validateAvatarValue(avatarUrl).value : null;
 
-  await update(ref(db, `users/${uid}`), {
-    displayName: name,
-    motorcycle: moto || null,
-    avatarUrl: avatar || null,
-    updatedAt: serverTimestamp()
-  });
+  try {
+    await update(ref(db, `users/${uid}`), {
+      displayName: name,
+      motorcycle: moto || null,
+      avatarUrl: avatar || null,
+      updatedAt: serverTimestamp()
+    });
+  } catch (err) {
+    if (avatar?.startsWith('data:image/gif') && /permission/i.test(`${err?.code} ${err?.message}`)) {
+      throw new Error('Animated GIF avatars need the updated database rules. Open Firebase Console, Realtime Database, Rules, paste firebase/database.rules.json and Publish.');
+    }
+    throw err;
+  }
   if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: name }).catch(() => {});
 
   const roomsSnap = await get(ref(db, `users/${uid}/rooms`));
