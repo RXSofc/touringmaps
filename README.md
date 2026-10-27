@@ -33,7 +33,7 @@ This clip is rendered headlessly from the app's own stylesheet with a scripted r
 
 ## What is inside
 
-**The convoy.** A room is made with a random ten-symbol invite code. The owner picks how many riders it holds, from 2 to 30 (default 6), and the database rules enforce that number, not just the screen. Riders join with the code, see a preview first, and can be removed or banned. Positions move through Firebase every 1.5 s or 5 m while riding, 30 s while standing still, and a rider's phone says when it has gone quiet.
+**The convoy.** A room is made with a random ten-symbol invite code. The owner picks how many riders it holds, from 2 to 30 (default 6), and the database rules enforce that number, not just the screen. Riders join with the code, see a preview first, and can be removed or banned. Profile photos can be animated GIFs: they are shrunk to a small square in the browser (no library) and keep moving on the map and in lists. Positions move through Firebase every 1.5 s or 5 m while riding, 30 s while standing still, and a rider's phone says when it has gone quiet.
 
 **The map.** Flat by default (Leaflet and OpenStreetMap). Tap 3D for a tilted MapLibre map with extruded buildings, house numbers and a camera that turns with your heading; tap HILL for terrain relief. Your own dot is gently pulled onto your route line, and stays still when you stand still. The route is a muted red that fades to soft white toward the destination.
 
@@ -113,6 +113,7 @@ node tests/route-snap.mjs        route colors and the dot snapped to the line
 node tests/follow-bearing.mjs    which way the 3D follow camera faces
 node tests/wrongway.mjs          heading away from the destination (no route to judge by)
 node tests/wrong-way-sim.mjs     the repeating wrong-way warning on simulated rides
+node tests/gif-test.mjs          animated GIF avatars: decode, shrink, re-encode (tests/fixtures)
 node tests/motion-deadband.mjs   the avatar standing still
 python3 tests/map3d_test.py      the 3D map against a fake MapLibre (needs Playwright)
 ```
@@ -123,6 +124,7 @@ Pages that mount the real views against stand-ins for Firebase (serve the folder
 tests/dashboard-real.html        the dashboard with fake sign-in and rooms
 tests/rooms-capacity.html        room size survives create, subscribe and new invite code
 tests/room-sheet.html            the Room sheet
+tests/avatar-gif.html            uploading a GIF through the real profile code (animation keeps playing)
 ```
 
 To regenerate the GIFs: start `python3 -m http.server 8099` in this folder, then `python3 docs/media/src/render.py` (needs Playwright and ffmpeg).

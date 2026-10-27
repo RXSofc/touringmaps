@@ -52,6 +52,7 @@ const SHELL = [
   'js/region.js',
   'js/regionwatch.js',
   'js/wrongway.js',
+  'js/gif.js',
   'js/weather.js',
   'js/discord.js',
   'js/map-config.js',
