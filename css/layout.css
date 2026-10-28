@@ -515,3 +515,42 @@
 .idback__v.mono { font-family: var(--font-mono); font-size: 0.95rem; }
 .idback .btn:not(.btn--danger) { --btn-bg: var(--color-surface); --btn-fg: var(--color-text); }
 .idback__note { margin: 0; font-size: 0.85rem; opacity: 0.9; }
+
+/* ============ Aspal malam: dark road backdrop on dashboard and profile ============
+   Dark Void ground, two road edges with dashed lane marks that slowly travel down the screen.
+   The marks live on transform-only layers (cheap on weak phones), sit behind everything, and stop
+   when the system asks for less motion. Hard shadows switch to Artillery so they still read on dark. */
+body[data-route="dashboard"], body[data-route="profile"] {
+  --shadow-sm: 3px 3px 0 var(--artillery);
+  --shadow: 4px 4px 0 var(--artillery);
+  --shadow-lg: 6px 6px 0 var(--artillery);
+  --road-x: clamp(0px, calc(50vw - 560px), 420px);
+  background-color: var(--ink);
+}
+body[data-route="dashboard"]::before, body[data-route="dashboard"]::after,
+body[data-route="profile"]::before, body[data-route="profile"]::after {
+  content: ''; position: fixed; z-index: 0; top: -72px; width: 10px; height: calc(100% + 144px);
+  pointer-events: none;
+  /* solid edge line, then the dashed lane mark */
+  background:
+    repeating-linear-gradient(to bottom, var(--equilibrium) 0 30px, transparent 30px 72px) 6px 0 / 4px 100% no-repeat,
+    linear-gradient(var(--iridium), var(--iridium)) 0 0 / 4px 100% no-repeat;
+  animation: road 2.4s linear infinite;
+  will-change: transform;
+}
+body[data-route="dashboard"]::before, body[data-route="profile"]::before { left: var(--road-x); }
+body[data-route="dashboard"]::after, body[data-route="profile"]::after { right: var(--road-x); transform: scaleX(-1); animation-name: road-r; }
+@keyframes road { to { transform: translateY(72px); } }
+@keyframes road-r { from { transform: scaleX(-1) translateY(0); } to { transform: scaleX(-1) translateY(72px); } }
+body[data-route="dashboard"] .app, body[data-route="profile"] .app { position: relative; z-index: 1; }
+/* headings that sit directly on the dark ground */
+body[data-route="dashboard"] .page__head, body[data-route="profile"] .page__head { color: var(--paper); }
+body[data-route="dashboard"] .page__title, body[data-route="profile"] .page__title,
+body[data-route="dashboard"] .page__brand, body[data-route="dashboard"] .status { color: var(--paper); }
+body[data-route="dashboard"] .page__brand .icon { border-color: var(--paper); }
+body[data-route="dashboard"] .status__dot { border-color: var(--paper); }
+body[data-route="dashboard"] .status--up .status__dot { background: var(--paper); }
+@media (prefers-reduced-motion: reduce) {
+  body[data-route="dashboard"]::before, body[data-route="dashboard"]::after,
+  body[data-route="profile"]::before, body[data-route="profile"]::after { animation: none; }
+}

@@ -74,6 +74,7 @@ async function resolve() {
   }
   if (myToken !== token) return;
   clear(outlet);
+  document.body.dataset.route = path.split('/')[1] || '';
 
   const handler = route ? route.handler : notFound;
   const view = handler(found?.params || {}, query);
