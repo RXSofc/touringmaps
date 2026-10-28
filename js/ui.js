@@ -1,14 +1,3 @@
-/**
- * UI helpers: safe DOM building (no innerHTML with user data), icons,
- * toasts, sheets, dialogs, formatters.
- */
-
-/* ---------------------------------------------------------------- DOM */
-
-/**
- * Hyperscript-style element builder. Text children are inserted as text nodes,
- * so user-controlled strings can never become markup.
- */
 export function h(tag, attrs, ...children) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs || {})) {
@@ -41,9 +30,7 @@ export function mountInto(node, ...children) {
   return appendChildren(node, children);
 }
 
-/* -------------------------------------------------------------- Icons */
 
-// Static, trusted SVG path data (24x24 grid, stroke-based).
 const ICONS = {
   locate: '<circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
   fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
@@ -94,11 +81,10 @@ export function icon(name, { label } = {}) {
   svg.setAttribute('class', 'icon');
   if (label) { svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', label); }
   else svg.setAttribute('aria-hidden', 'true');
-  svg.innerHTML = ICONS[name] || ''; // trusted constants only
+  svg.innerHTML = ICONS[name] || ''; 
   return svg;
 }
 
-/* ------------------------------------------------------------- Toasts */
 
 export function toast(message, { type = 'info', timeout, action } = {}) {
   const host = document.getElementById('toasts');
@@ -126,8 +112,6 @@ export function toast(message, { type = 'info', timeout, action } = {}) {
   return dismiss;
 }
 
-/* -------------------------------------------------------------- Sheets */
-
 let sheetSeq = 0;
 
 function focusables(root) {
@@ -135,10 +119,6 @@ function focusables(root) {
     .filter((el) => el.offsetParent !== null);
 }
 
-/**
- * Modal bottom sheet (centered dialog on wide screens).
- * @returns {{close:(result?:any)=>void, body:HTMLElement, sheet:HTMLElement}}
- */
 export function openSheet({ title, content, footer, onClose, className = '' }) {
   const previouslyFocused = document.activeElement;
   const titleId = `sheet-title-${++sheetSeq}`;
@@ -200,9 +180,7 @@ export function confirmDialog({ title, message, confirmLabel = 'Confirm', cancel
   });
 }
 
-/* --------------------------------------------------------------- Async */
 
-/** Disable a button and show a spinner while `task` runs. */
 export async function withBusy(button, task) {
   if (button) { button.classList.add('is-loading'); button.disabled = true; button.setAttribute('aria-busy', 'true'); }
   try {
@@ -219,7 +197,6 @@ export function debounce(fn, ms) {
   return wrapped;
 }
 
-/** Leading + trailing throttle. */
 export function throttle(fn, ms) {
   let last = 0;
   let timer = null;
@@ -252,8 +229,6 @@ export async function copyText(text) {
   ta.remove();
   return ok;
 }
-
-/* ---------------------------------------------------------- Formatters */
 
 export function formatDistance(meters) {
   if (!Number.isFinite(meters)) return '–';
@@ -306,7 +281,6 @@ export function formatSpeedKmh(metersPerSecond) {
   return `${Math.round(metersPerSecond * 3.6)} km/h`;
 }
 
-/** Trim, collapse whitespace, strip control characters, cap length. */
 export function cleanText(value, max) {
   return String(value ?? '')
     // eslint-disable-next-line no-control-regex
@@ -316,7 +290,6 @@ export function cleanText(value, max) {
     .slice(0, max);
 }
 
-/** Inline SVG data-URL avatar with the rider's initial. Used when no photo is set. */
 export function defaultAvatar(name, seed = '') {
   const palette = [['#141616', '#E6E3E1'], ['#3D3C38', '#E6E3E1'], ['#746D67', '#E6E3E1'], ['#A49F9D', '#141616'], ['#7F1D1A', '#E6E3E1'], ['#E6E3E1', '#141616']];
   let hash = 0;
@@ -332,7 +305,6 @@ export function avatarFor(person, uid = '') {
   return person?.avatarUrl || defaultAvatar(person?.displayName, uid);
 }
 
-/** Wire an <img> to fall back to the default avatar if its source fails to load. */
 export function avatarImg(person, uid, className = 'avatar') {
   const img = h('img', { class: className, alt: '', width: 40, height: 40, loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' });
   const fallback = defaultAvatar(person?.displayName, uid);
