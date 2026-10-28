@@ -1,33 +1,12 @@
-/**
- * In-app push-to-talk voice (WebRTC), designed to cost almost nothing while idle.
- *
- *  - The microphone is opened only when the talk button is pressed, kept "warm"
- *    for a few seconds afterwards (so repeated presses are instant), then released.
- *  - Nothing is connected until somebody talks. The first press makes one
- *    sender-only audio connection to each rider who is online; they are closed
- *    again after a minute of silence.
- *  - Every connection carries audio one way only (talker -> listener), so two
- *    riders talking at once are simply two independent connections: there is no
- *    "who calls whom" negotiation to get wrong.
- *  - Audio is mono Opus at ~24 kbps and flows only while the button is held.
- *  - Signalling (offers, answers, ICE, "who is talking") goes through js/signaling.js:
- *    Supabase Realtime Broadcast when configured, otherwise Firebase. Audio itself
- *    never touches either.
- *
- * Honest limits: a web page is suspended with the screen lock, the WebView must
- * grant the microphone, and riders behind strict mobile-carrier NAT need a TURN
- * server (APP.voice.iceServers). See README → Voice.
- */
 import { APP } from './config.js';
 import { serverNow } from './presence.js';
 import { createSignaling } from './signaling.js';
 
 const CFG = APP.voice;
-// Entries still holding YOUR_… placeholders are ignored, never sent to the browser as real servers.
+
 const ICE_SERVERS = (CFG.iceServers || []).filter((x) => !/YOUR_/i.test(JSON.stringify(x)));
 export const TURN_CONFIGURED = ICE_SERVERS.some((x) => [].concat(x.urls).some((u) => /^turns?:/i.test(u)));
 
-/** Summarise one RTCPeerConnection for the diagnostics sheet. Never throws. */
 async function describePc(pc, extra) {
   const o = { ...extra, connection: pc.connectionState, ice: pc.iceConnectionState, gathering: pc.iceGatheringState, signaling: pc.signalingState };
   try {
@@ -61,7 +40,6 @@ const rid = (n = 12) => {
   return [...bytes].map((b) => a[b % a.length]).join('');
 };
 
-/** Ask Opus for voice-friendly settings: mono, in-band FEC, DTX, capped bitrate. */
 export function tuneOpus(sdp, bitrate) {
   const m = /a=rtpmap:(\d+) opus\/48000\/2/i.exec(sdp);
   if (!m) return sdp;
@@ -87,13 +65,7 @@ const stateOf = (pc) => pc.connectionState || pc.iceConnectionState;
 const isUp = (pc) => { const s = stateOf(pc); return s === 'connected' || s === 'completed'; };
 
 export class VoiceChat {
-  /**
-   * @param {{roomId:string, uid:string,
-   *          getPeers:()=>Array<{uid:string, epoch:any}>,   // other riders who are online
-   *          isMember:(uid:string)=>boolean,                // only room members may signal us
-   *          onChange:()=>void,
-   *          onProblem:(peerUid:string, kind:string)=>void}} opts
-   */
+  
   constructor({ roomId, uid, getPeers, isMember, onChange, onProblem }) {
     this.roomId = roomId;
     this.uid = uid;
@@ -103,38 +75,37 @@ export class VoiceChat {
     this.onProblem = onProblem || (() => {});
 
     this.destroyed = false;
-    this.holding = false;        // finger is on the button
-    this.transmitting = false;   // mic is live and being sent
+    this.holding = false;        
+    this.transmitting = false;  
     this.pressSeq = 0;
-    this.micError = null;        // 'denied' | 'nomic' | 'unsupported' | 'error'
-    this.audioBlocked = false;   // autoplay refused; retried on the next tap
+    this.micError = null;        
+    this.audioBlocked = false;   
 
-    this.mic = null;             // {stream, track}
+    this.mic = null;            
     this.micTimer = null;
     this.idleTimer = null;
     this.holdTimer = null;
 
-    this.tx = new Map();         // peerUid -> {pc, sid, peer, epoch, sender, offerSent, queued, timer, problem}
-    this.rx = new Map();         // sid -> {pc, from, audio, timer}
-    this.bySid = new Map();      // sid -> {kind:'tx'|'rx', entry}
-    this.pendingIce = new Map(); // sid -> RTCIceCandidateInit[]
-    this.sig = null;             // signalling transport
-    this.flags = {};             // uid -> {at}
+    this.tx = new Map();        
+    this.rx = new Map();         
+    this.bySid = new Map();    
+    this.pendingIce = new Map(); 
+    this.sig = null;             
+    this.flags = {};            
     this.unsubs = [];
     this.audioHost = null;
-    this.events = [];            // short diagnostic log (newest last)
+    this.events = [];           
   }
 
   ev(msg) { this.events.push(`${new Date().toLocaleTimeString('en-GB')} ${msg}`); if (this.events.length > 80) this.events.shift(); }
 
-  /* ----------------------------------------------------------------- setup */
   start() {
     if (!VOICE_SUPPORTED || this.destroyed) return;
     this.sig = createSignaling({
       roomId: this.roomId,
       uid: this.uid,
       onSignal: (from, m) => {
-        if (!this.isMember(from)) return;   // the channel is not secret; membership is the gate
+        if (!this.isMember(from)) return;   
         this.handle(from, m).catch((err) => console.warn('voice signal error', err));
       },
       onTalk: (flags) => { this.flags = flags; this.emit(); }
@@ -148,8 +119,7 @@ export class VoiceChat {
 
   emit() { if (!this.destroyed) try { this.onChange(); } catch (e) { console.error(e); } }
 
-  /* ---------------------------------------------------------------- queries */
-  /** Riders currently holding their talk button (stale flags are ignored). */
+  
   talkers() {
     const now = serverNow();
     const out = [];
@@ -161,7 +131,7 @@ export class VoiceChat {
     return out;
   }
 
-  /** 'idle' | 'starting' | 'connecting' | 'live' */
+ 
   phase() {
     if (this.holding && !this.transmitting) return 'starting';
     if (!this.transmitting) return 'idle';
@@ -169,8 +139,7 @@ export class VoiceChat {
     return 'connecting';
   }
 
-  /* ------------------------------------------------------------ talk button */
-  /** Start talking. Resolves {ok:true} or {ok:false, reason}. */
+  
   async press() {
     if (this.destroyed || this.holding) return { ok: true };
     if (!VOICE_SUPPORTED) { this.micError = 'unsupported'; this.emit(); return { ok: false, reason: 'unsupported' }; }
@@ -190,8 +159,7 @@ export class VoiceChat {
       return { ok: false, reason: this.micError };
     }
     this.micError = null;
-    // Released (or destroyed) while the permission prompt / mic start-up was pending:
-    // keep the mic warm but do not transmit anything.
+    
     if (this.destroyed || !this.holding || seq !== this.pressSeq) { this.emit(); return { ok: true, late: true }; }
 
     clearTimeout(this.idleTimer);
@@ -223,7 +191,7 @@ export class VoiceChat {
     this.emit();
   }
 
-  /** Page hidden / app backgrounded: stop transmitting and give the microphone back. */
+  
   suspend() {
     this.release();
     clearTimeout(this.micTimer);
@@ -231,7 +199,6 @@ export class VoiceChat {
     this.emit();
   }
 
-  /* ------------------------------------------------------------- microphone */
   async ensureMic() {
     clearTimeout(this.micTimer);
     if (this.mic && this.mic.track.readyState === 'live') return;
@@ -260,11 +227,10 @@ export class VoiceChat {
     this.mic = null;
   }
 
-  /* ------------------------------------------------------- "who is talking" */
+ 
   announce(on) { this.sig?.talk(on); }
 
-  /* ------------------------------------------------------------------ senders */
-  /** Make sure there is a sending connection to every online rider (and none to riders who left). */
+ 
   syncPeers() {
     if (this.destroyed) return;
     const peers = new Map(this.getPeers().map((p) => [p.uid, p]));
@@ -359,7 +325,6 @@ export class VoiceChat {
     this.emit();
   }
 
-  /* ---------------------------------------------------------------- signalling */
   signal(to, t, sid, d) { this.sig?.send(to, t, sid, d); }
 
   async handle(from, m) {
@@ -398,7 +363,6 @@ export class VoiceChat {
     for (const c of q) { try { await pc.addIceCandidate(c); } catch { /* ignore */ } }
   }
 
-  /* ----------------------------------------------------------------- listeners */
   async acceptOffer(from, sid, offer) {
     if (this.destroyed || !offer?.sdp) return;
     this.ev(`rx offer from ${from.slice(0, 5)}`);
@@ -467,8 +431,7 @@ export class VoiceChat {
     this.emit();
   }
 
-  /* -------------------------------------------------------------- diagnostics */
-  /** A snapshot for the diagnostics sheet / "copy report". */
+ 
   async diagnose() {
     const m = this.mic?.track;
     const out = {
@@ -489,8 +452,7 @@ export class VoiceChat {
     return out;
   }
 
-  /* ------------------------------------------------------------------ teardown */
-  /** Release everything and clear my entries from the database. Safe to call twice. */
+ 
   async destroy() {
     if (this.destroyed) return;
     this.release();
