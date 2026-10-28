@@ -1,7 +1,7 @@
 // Stubs so js/views/dashboard.js can be mounted for real without Firebase.
 export const getUser = () => ({ uid: 'u1' });
 export const logout = async () => { window.__loggedOut = true; };
-export const ensureProfile = async () => ({ displayName: 'ARIQ3GP', motorcycle: 'Beat Deluxe 140cc' });
+export const ensureProfile = async () => ({ displayName: 'ARIQ3GP', motorcycle: 'Beat Deluxe 140cc', avatarUrl: new URLSearchParams(location.search).get('avatar') || undefined });
 export const onConnectionChange = (cb) => { setTimeout(() => cb(true), 20); return () => {}; };
 export const navigate = (p) => { window.__nav = p; };
 export const normalizeCode = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');

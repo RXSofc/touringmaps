@@ -5,6 +5,21 @@ import {
 } from '../profile.js';
 import { APP } from '../config.js';
 
+/** Small stable hash (FNV-1a) so a rider always gets the same number and barcode. */
+function hashUid(uid) {
+  let h32 = 0x811c9dc5;
+  for (let i = 0; i < uid.length; i++) { h32 ^= uid.charCodeAt(i); h32 = Math.imul(h32, 0x01000193) >>> 0; }
+  return h32 >>> 0;
+}
+const riderNumber = (uid) => hashUid(uid).toString(36).toUpperCase().padStart(6, '0').slice(-6);
+/** Barcode-style strip drawn from the uid: decorative, but it is the same for the same rider every time. */
+function barcodeSvg(uid) {
+  let seed = hashUid(uid) || 1; const next = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >>> 17; seed ^= seed << 5; seed >>>= 0; return seed; };
+  let x = 0; let rects = '';
+  while (x < 236) { const w = 2 + (next() % 4); const gap = 2 + (next() % 3); if (x + w > 240) break; rects += `<rect x="${x}" y="0" width="${w}" height="30"/>`; x += w + gap; }
+  return `<svg viewBox="0 0 240 30" preserveAspectRatio="none" aria-hidden="true" focusable="false" fill="currentColor">${rects}</svg>`;
+}
+
 export function profileView() {
   return {
     async mount(root) {
@@ -20,11 +35,12 @@ export function profileView() {
       }
 
       let avatarValue = profile.avatarUrl || '';
-      const preview = h('img', { class: 'avatar avatar--lg', alt: 'Avatar preview', width: 72, height: 72 });
-      const showPreview = () => { preview.src = avatarValue || defaultAvatar(nameInput.value || profile.displayName, user.uid); };
+      const preview = h('img', { class: 'avatar avatar--lg', alt: 'Your photo', width: 112, height: 112 });
+      const showPreview = () => { preview.src = avatarValue || defaultAvatar(nameInput.value || profile.displayName, user.uid); if (removeBtn) removeBtn.hidden = !avatarValue; };
+      let removeBtn = null;
 
-      const nameInput = h('input', { class: 'input', id: 'p-name', value: profile.displayName || '', maxlength: APP.limits.displayName, autocomplete: 'nickname', required: true });
-      const motoInput = h('input', { class: 'input', id: 'p-moto', value: profile.motorcycle || '', maxlength: APP.limits.motorcycle, placeholder: 'Honda CB500X', autocomplete: 'off' });
+      const nameInput = h('input', { class: 'input idcard__name', id: 'p-name', value: profile.displayName || '', maxlength: APP.limits.displayName, autocomplete: 'nickname', required: true });
+      const motoInput = h('input', { class: 'input idcard__bike', id: 'p-moto', value: profile.motorcycle || '', maxlength: APP.limits.motorcycle, placeholder: 'Honda CB500X', autocomplete: 'off' });
       const urlInput = h('input', { class: 'input', id: 'p-avatar-url', type: 'url', inputmode: 'url', placeholder: 'https://…/me.jpg', value: avatarValue.startsWith('data:') ? '' : avatarValue, autocomplete: 'off' });
       const fileInput = h('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp,image/gif', class: 'visually-hidden', id: 'p-avatar-file' });
       const errors = {
@@ -61,7 +77,9 @@ export function profileView() {
       });
       preview.addEventListener('error', () => { preview.src = defaultAvatar(nameInput.value, user.uid); }, { once: false });
 
-      const save = h('button', { class: 'btn btn--primary', type: 'submit' }, icon('check'), 'Save profile');
+      removeBtn = h('button', { class: 'idcard__remove', type: 'button', onclick: () => { avatarValue = ''; urlInput.value = ''; showPreview(); } }, 'Remove photo');
+      removeBtn.hidden = !avatarValue;
+      const save = h('button', { class: 'btn btn--primary btn--block', type: 'submit' }, icon('check'), 'Save profile');
       const form = h('form', { class: 'form', novalidate: true, onsubmit: async (e) => {
         e.preventDefault();
         const input = { displayName: nameInput.value, motorcycle: motoInput.value, avatarUrl: avatarValue };
@@ -82,37 +100,49 @@ export function profileView() {
           else toast(err.message || 'Could not save.', { type: 'error' });
         }
       } },
-      h('div', { class: 'avatar-editor' }, preview,
-        h('div', { class: 'avatar-editor__buttons' },
-          h('label', { class: 'btn btn--sm', for: 'p-avatar-file' }, icon('plus'), 'Upload photo'),
-          avatarValue ? h('button', { class: 'btn btn--sm btn--ghost', type: 'button', onclick: () => { avatarValue = ''; urlInput.value = ''; showPreview(); } }, 'Remove') : null,
-          h('p', { class: 'muted small avatar-editor__hint' }, 'JPEG, PNG, WebP or GIF. A GIF is shrunk and keeps moving.')),
-        fileInput),
-      h('div', { class: 'field' }, h('label', { for: 'p-avatar-url' }, 'Or avatar link (https)'), urlInput, errors.avatarUrl),
-      h('div', { class: 'field' }, h('label', { for: 'p-name' }, 'Display name'), nameInput, errors.displayName),
-      h('div', { class: 'field' }, h('label', { for: 'p-moto' }, 'Motorcycle (optional)'), motoInput, errors.motorcycle),
-      save);
+      h('div', { class: 'idcard__row' },
+        h('div', { class: 'idcard__photobox' },
+          h('label', { class: 'idcard__photo', for: 'p-avatar-file', title: 'Change photo' }, preview, h('span', { class: 'idcard__change' }, icon('plus'), 'Change')),
+          removeBtn,
+          fileInput),
+        h('div', { class: 'idcard__fields' },
+          h('div', { class: 'field' }, h('label', { for: 'p-name' }, 'Name'), nameInput, errors.displayName),
+          h('div', { class: 'field' }, h('label', { for: 'p-moto' }, 'Bike'), h('div', { class: 'idcard__plate' }, motoInput), errors.motorcycle))),
+      h('p', { class: 'idcard__hint' }, 'JPEG, PNG, WebP or GIF. A GIF is shrunk and keeps moving.'),
+      h('details', { class: 'idcard__more' },
+        h('summary', {}, 'Use a photo link instead'),
+        h('div', { class: 'field' }, h('label', { for: 'p-avatar-url' }, 'Photo link (https)'), urlInput),
+        h('p', { class: 'idcard__hint' }, 'A link is fetched by other riders’ devices, so the image host can see their IP addresses. Uploading a photo avoids that.')),
+      errors.avatarUrl,
+      h('div', { class: 'idcard__tear' }, save));
 
       const resetBtn = h('button', { class: 'btn btn--sm', type: 'button', onclick: async (e) => {
         try { await withBusy(e.currentTarget, () => requestPasswordReset(user.email)); toast('Password reset email sent.', { type: 'success' }); }
         catch (err) { toast(err.message, { type: 'error' }); }
       } }, 'Email me a reset link');
 
-      mountInto(root, h('div', { class: 'page' },
+      const barcode = h('div', { class: 'idcard__bars' });
+      barcode.innerHTML = barcodeSvg(user.uid);
+      const joined = formatDate(Date.parse(user.metadata?.creationTime));
+
+      mountInto(root, h('div', { class: 'page prof' },
         h('header', { class: 'page__head' },
           h('a', { class: 'btn btn--sm btn--cancel', href: '#/dashboard' }, icon('back'), 'Back'),
           h('h1', { class: 'page__title' }, 'Profile')),
-        h('div', { class: 'grid-2' },
-          h('section', { class: 'card', 'aria-labelledby': 'prof-title' }, h('h2', { class: 'card__title', id: 'prof-title' }, icon('user'), 'Rider profile'), form),
-          h('section', { class: 'card', 'aria-labelledby': 'acct-title' },
-            h('h2', { class: 'card__title', id: 'acct-title' }, icon('settings'), 'Account'),
-            h('dl', { class: 'kv' },
-              h('dt', {}, 'Email'), h('dd', { class: 'mono' }, user.email || '–'),
-              h('dt', {}, 'Joined'), h('dd', {}, formatDate(Date.parse(user.metadata?.creationTime))),
-              h('dt', {}, 'Password'), h('dd', {}, resetBtn)),
-            h('p', { class: 'muted small' }, 'Your email is private: other riders only see your display name, photo and bike.'),
-            h('hr', { class: 'rule' }),
-            h('p', { class: 'muted small' }, 'Avatar links are fetched by other riders’ devices, so the image host can see their IP addresses. Uploading a photo avoids that.'),
+        h('div', { class: 'prof__grid' },
+          h('section', { class: 'idcard', 'aria-labelledby': 'prof-title' },
+            h('header', { class: 'idcard__top' },
+              h('span', { class: 'idcard__brand' }, icon('pin'), 'VEXLANE'),
+              h('h2', { class: 'idcard__title', id: 'prof-title' }, 'Rider ID')),
+            h('div', { class: 'idcard__no' }, h('span', {}, 'No.'), h('strong', {}, riderNumber(user.uid))),
+            h('div', { class: 'idcard__body' }, form),
+            h('footer', { class: 'idcard__foot' }, barcode, h('span', {}, `Member since ${joined}`))),
+          h('section', { class: 'idback', 'aria-labelledby': 'acct-title' },
+            h('h2', { class: 'idback__title', id: 'acct-title' }, icon('settings'), 'Account'),
+            h('div', { class: 'idback__row' }, h('span', { class: 'idback__k' }, 'Email'), h('span', { class: 'idback__v mono' }, user.email || '–')),
+            h('div', { class: 'idback__row' }, h('span', { class: 'idback__k' }, 'Joined'), h('span', { class: 'idback__v' }, joined)),
+            h('div', { class: 'idback__row' }, h('span', { class: 'idback__k' }, 'Password'), resetBtn),
+            h('p', { class: 'idback__note' }, 'Your email is private: other riders only see your name, photo and bike.'),
             h('button', { class: 'btn btn--danger btn--block', type: 'button', onclick: async (e) => {
               await withBusy(e.currentTarget, () => logout().catch((err) => toast(err.message, { type: 'error' })));
             } }, icon('logout'), 'Sign out')))));
