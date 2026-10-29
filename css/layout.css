@@ -554,3 +554,33 @@ body[data-route="dashboard"] .status--up .status__dot { background: var(--paper)
   body[data-route="dashboard"]::before, body[data-route="dashboard"]::after,
   body[data-route="profile"]::before, body[data-route="profile"]::after { animation: none; }
 }
+
+/* ---- Kontur: a night map of the hills. Two layers of the same terrain drift at different speeds
+   (thin contours behind, thick index lines with elevations and peaks in front). Transform only. */
+body[data-route="dashboard"][data-bg="contour"]::before, body[data-route="dashboard"][data-bg="contour"]::after,
+body[data-route="profile"][data-bg="contour"]::before, body[data-route="profile"][data-bg="contour"]::after {
+  top: 0; left: 0; right: auto; width: calc(100% + 960px); height: calc(100% + 960px);
+  background-repeat: repeat; background-size: 960px 960px; background-position: 0 0;
+  transform: none; will-change: transform;
+}
+body[data-route="dashboard"][data-bg="contour"]::before, body[data-route="profile"][data-bg="contour"]::before {
+  background-image: url('../assets/images/contour-lines.svg'); animation: terrain-a 200s linear infinite;
+}
+body[data-route="dashboard"][data-bg="contour"]::after, body[data-route="profile"][data-bg="contour"]::after {
+  background-image: url('../assets/images/contour-index.svg'); animation: terrain-b 130s linear infinite;
+}
+@keyframes terrain-a { to { transform: translate(-960px, -480px); } }
+@keyframes terrain-b { to { transform: translate(-960px, -960px); } }
+@media (prefers-reduced-motion: reduce) {
+  body[data-route="dashboard"][data-bg="contour"]::before, body[data-route="dashboard"][data-bg="contour"]::after,
+  body[data-route="profile"][data-bg="contour"]::before, body[data-route="profile"][data-bg="contour"]::after { animation: none; }
+}
+/* the road / contour switch on the Profile card */
+.seg { display: inline-flex; border: 3px solid var(--color-on-primary); border-radius: var(--radius); overflow: hidden; }
+.seg__btn { background: transparent; color: var(--color-on-primary); border: 0; padding: 0.5rem 1rem; min-height: 44px; font: 700 0.9rem var(--font-display); cursor: pointer; }
+.seg__btn + .seg__btn { border-left: 3px solid var(--color-on-primary); }
+.seg__btn[aria-pressed="true"] { background: var(--color-on-primary); color: var(--color-primary); }
+/* on the busy contour map, heading text sits on a solid ink chip so it stays readable */
+body[data-bg="contour"][data-route="dashboard"] .page__brand, body[data-bg="contour"][data-route="dashboard"] .status,
+body[data-bg="contour"][data-route="profile"] .page__title { background: var(--ink); padding: 0.3rem 0.6rem; }
+body[data-bg="contour"][data-route="profile"] .page__title { padding: 0.1rem 0.6rem; }

@@ -4,6 +4,7 @@ import {
   ensureProfile, saveProfile, validateProfileInput, validateAvatarValue, testImageUrl, resizeImageFile
 } from '../profile.js';
 import { APP } from '../config.js';
+import { getBackdrop, setBackdrop } from '../router.js';
 
 /** Small stable hash (FNV-1a) so a rider always gets the same number and barcode. */
 function hashUid(uid) {
@@ -121,6 +122,15 @@ export function profileView() {
         catch (err) { toast(err.message, { type: 'error' }); }
       } }, 'Email me a reset link');
 
+      const bgBtn = (value, label) => {
+        const b = h('button', { class: 'seg__btn', type: 'button', 'aria-pressed': String(getBackdrop() === value), onclick: () => {
+          setBackdrop(value);
+          for (const x of bgSeg.querySelectorAll('.seg__btn')) x.setAttribute('aria-pressed', String(x === b));
+        } }, label);
+        return b;
+      };
+      const bgSeg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Background' }, bgBtn('road', 'Road'), bgBtn('contour', 'Contour'));
+
       const barcode = h('div', { class: 'idcard__bars' });
       barcode.innerHTML = barcodeSvg(user.uid);
       const joined = formatDate(Date.parse(user.metadata?.creationTime));
@@ -142,6 +152,7 @@ export function profileView() {
             h('div', { class: 'idback__row' }, h('span', { class: 'idback__k' }, 'Email'), h('span', { class: 'idback__v mono' }, user.email || '–')),
             h('div', { class: 'idback__row' }, h('span', { class: 'idback__k' }, 'Joined'), h('span', { class: 'idback__v' }, joined)),
             h('div', { class: 'idback__row' }, h('span', { class: 'idback__k' }, 'Password'), resetBtn),
+            h('div', { class: 'idback__row' }, h('span', { class: 'idback__k' }, 'Background'), bgSeg),
             h('p', { class: 'idback__note' }, 'Your email is private: other riders only see your name, photo and bike.'),
             h('button', { class: 'btn btn--danger btn--block', type: 'button', onclick: async (e) => {
               await withBusy(e.currentTarget, () => logout().catch((err) => toast(err.message, { type: 'error' })));

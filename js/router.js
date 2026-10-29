@@ -7,6 +7,9 @@
 import { getUser, onAuth } from './auth.js';
 import { clear } from './ui.js';
 
+const BG_KEY = 'vex-backdrop';
+export function getBackdrop() { try { return localStorage.getItem(BG_KEY) === 'contour' ? 'contour' : 'road'; } catch { return 'road'; } }
+export function setBackdrop(v) { try { localStorage.setItem(BG_KEY, v); } catch { /* private mode: applies for this visit only */ } document.body.dataset.bg = v === 'contour' ? 'contour' : 'road'; }
 const routes = [];
 let outlet = null;
 let activeView = null;
@@ -75,6 +78,7 @@ async function resolve() {
   if (myToken !== token) return;
   clear(outlet);
   document.body.dataset.route = path.split('/')[1] || '';
+  document.body.dataset.bg = getBackdrop();
 
   const handler = route ? route.handler : notFound;
   const view = handler(found?.params || {}, query);
