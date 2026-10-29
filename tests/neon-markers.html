@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="../css/tokens.css"><link rel="stylesheet" href="../css/base.css"><link rel="stylesheet" href="../css/components.css"><link rel="stylesheet" href="../css/layout.css">
+<style>body{margin:0}.row{display:flex;gap:24px;padding:24px;flex-wrap:wrap}.row>div{width:260px}</style></head><body>
+<div class="row" id="a" style="background:#EDEDED"></div>
+<div class="row map--neon" id="b" style="background:#0d0e15"></div>
+<script type="module">
+import { destinationEl, buildRiderEl } from '/js/map.js';
+for (const id of ['a','b']) {
+  const root = document.getElementById(id);
+  const box = (el) => { const d = document.createElement('div'); d.append(el); root.append(d); };
+  box(destinationEl(false)); box(destinationEl(true));
+  box(buildRiderEl({uid:'u1',name:'ARIQ',state:'live',isSelf:true,avatar:''}));
+  box(buildRiderEl({uid:'u2',name:'Budi',state:'live',selected:true}));
+  box(buildRiderEl({uid:'u3',name:'Sari',state:'stale',ageMs:90000}));
+}
+window.__ready = true;
+</script></body></html>

@@ -12,7 +12,7 @@ async () => {
       this.c={lng:o.center[0],lat:o.center[1]}; this.z=o.zoom; this.vis={}; this.pad=null;
       this.touchZoomRotate={enableRotation(){}}; this.cv=document.createElement('canvas');
       setTimeout(()=>this.h.load&&this.h.load(),0); }
-    on(e,f){ this.h[e]=f; } addControl(){} getCanvas(){ return this.cv; } getContainer(){ return {clientHeight:600}; }
+    on(e,f){ this.h[e]=f; } addControl(){} getCanvas(){ return this.cv; } getContainer(){ return this.cont ||= Object.defineProperty(document.createElement('div'),'clientHeight',{value:600}); } setLight(l){ this.light=l; }
     getSource(id){ return this.src[id]; } getLayer(){ return {}; } setLayoutProperty(id,k,v){ this.vis[id]=v; } setPaintProperty(id,k,v){ (this.paint ||= {})[id+':'+k]=v; }
     jumpTo(o){ if(o.center) this.c={lng:o.center[0],lat:o.center[1]}; if(o.bearing!==undefined) this.b=o.bearing; if(o.zoom!==undefined) this.z=o.zoom; this.jumps=(this.jumps||0)+1; }
     easeTo(o){ this.ease=o; } flyTo(o){ this.fly=o; } fitBounds(b,o){ this.fit={b,o}; } setPadding(p){ this.pad=p; } setTerrain(t){ this.terrain=t; } setLayerZoomRange(id,a,b){ (this.zr ||= {})[id]=[a,b]; }
@@ -115,6 +115,14 @@ async () => {
   for(let i=0;i<10;i++) inst.h.error({sourceId:'openmaptiles',error:{message:'x'}});
   ok(tileErr===1,'gives up exactly once, got '+tileErr);
   inst.h.error({sourceId:'other',error:{message:'glyph'}});
+  // Neon Night skin: paint swaps only, halo layers shown, class on the container, no rebuild of sources
+  ok(m.skin===false && !inst.cont.classList.contains('map--neon'),'skin off by default');
+  const nSrc=Object.keys(inst.src).length;
+  m.setSkin(true); ok(inst.cont.classList.contains('map--neon') && inst.paint['background:background-color']==='#0d0e15' && inst.vis['route-glow']==='visible' && inst.vis['road-glow-primary']==='visible' && inst.light.color==='#b8a6ff','skin on: colours, halos, light');
+  ok(String(JSON.stringify(inst.paint['route-line:line-gradient'])).includes('#ff007f') && inst.paint['road-motorway:line-color']==='#ff5e00' && inst.paint['road-primary:line-color']==='#fcee0a','skin: neon route, orange toll roads, yellow main roads');
+  ok(Object.keys(inst.src).length===nSrc,'skin does not rebuild sources');
+  m.setSkin(false); ok(!inst.cont.classList.contains('map--neon') && inst.paint['background:background-color']==='#F1F1F1' && inst.vis['route-glow']==='none' && inst.light.color==='#FFFFFF','skin off restores the default map');
+  m.glitch(); ok(inst.cont.classList.contains('map--glitch'),'glitch flash starts');
   m.destroy(); ok(inst.gone,'map removed'); ok(m.riders.size===0,'riders cleared');
   return fails;
 }

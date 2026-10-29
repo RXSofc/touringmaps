@@ -35,7 +35,7 @@ This clip is rendered headlessly from the app's own stylesheet with a scripted r
 
 **The convoy.** A room is made with a random ten-symbol invite code. The owner picks how many riders it holds, from 2 to 30 (default 6), and the database rules enforce that number, not just the screen. Riders join with the code, see a preview first, and can be removed or banned. Profile photos can be animated GIFs: they are shrunk to a small square in the browser (no library) and keep moving on the map and in lists. Positions move through Firebase every 1.5 s or 5 m while riding, 30 s while standing still, and a rider's phone says when it has gone quiet.
 
-**The map.** Flat by default (Leaflet and OpenStreetMap). Tap 3D for a tilted MapLibre map with extruded buildings, house numbers and a camera that turns with your heading; tap HILL for terrain relief. Your own dot is gently pulled onto your route line, and stays still when you stand still. The route is a muted red that fades to soft white toward the destination.
+**The map.** Flat by default (Leaflet and OpenStreetMap). Tap 3D for a tilted MapLibre map with extruded buildings, house numbers and a camera that turns with your heading; hills show as a soft relief, and a NEON button switches a night-city map skin on and off. Your own dot is gently pulled onto your route line, and stays still when you stand still. The route is a muted red that fades to soft white toward the destination.
 
 **Getting there.** Set the destination by searching a place, typing coordinates or tapping the map. Each rider's route comes from OSRM starting at that rider's own position. Leave the route and the reroute starts within about 3.5 seconds, retrying with a growing delay if the signal is bad. While you keep riding the wrong way (off the route, or away from the destination when there is no route to judge by) the red card stays up and the phone buzzes again every four seconds; stop riding and it goes quiet. Turn alerts (far, near, now) come as a popup plus a vibration.
 
@@ -111,7 +111,7 @@ node tests/routing-toll.mjs      the toll layers and the reroute retries
 node tests/regionwatch.mjs       region look-ahead and weather text
 node tests/route-snap.mjs        route colors and the dot snapped to the line
 node tests/follow-bearing.mjs    which way the 3D follow camera faces
-node tests/wrongway.mjs          heading away from the destination (no route to judge by)
+node tests/wrongway.mjs, skin-test.mjs          heading away from the destination (no route to judge by)
 node tests/wrong-way-sim.mjs     the repeating wrong-way warning on simulated rides
 node tests/gif-test.mjs          animated GIF avatars: decode, shrink, re-encode (tests/fixtures)
 node tests/motion-deadband.mjs   the avatar standing still

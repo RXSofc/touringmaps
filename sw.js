@@ -11,7 +11,7 @@
  *
  * Bump VERSION when you want to drop old caches.
  */
-const VERSION = 'tt-v45';
+const VERSION = 'tt-v46';
 const SHELL_CACHE = `${VERSION}-shell`;
 const SDK_CACHE = `${VERSION}-sdk`;
 
