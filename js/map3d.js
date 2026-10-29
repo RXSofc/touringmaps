@@ -10,7 +10,7 @@
  *  - Needs WebGL and the MapLibre library, which is loaded on demand.
  */
 import { MAP_CONFIG } from './map-config.js';
-import { buildStyle } from './map-style.js';
+import { buildStyle, SKIN_OPS, SKIN_GLOW_LAYERS, LIGHT_DEFAULT, LIGHT_NEON } from './map-style.js';
 import { buildRiderEl, destinationEl, riderSignature, fixOf } from './map.js';
 import { APP } from './config.js';
 import { MotionTrack } from './motion.js';
@@ -123,7 +123,8 @@ export class TouringMap3D {
     this.previewMarker = null;
     this.routeVisible = true;
     this.routeDim = false;
-    this.terrainLevel = 0;     // 0 off, 1 hill shading only (cheap), 2 full 3D terrain mesh (heavy)
+    this.terrainLevel = 1;     // 0 off, 1 soft hill shading (default in 3D, cheap), 2 full 3D terrain mesh (heavy, no longer offered)
+    this.skin = false;
     this.lastSelf = null;
     this.lastCam = 0;
     this.snapper = null;
@@ -153,6 +154,7 @@ export class TouringMap3D {
       this._applyRouteVisibility();
       this._applyRouteDim();
       this._applyTerrain();
+      this._applySkin();
     });
     this.map.on('dragstart', (e) => { if (e.originalEvent) handlers.onUserPan?.(); });
     this.map.on('click', (e) => handlers.onMapClick?.({ lat: e.lngLat.lat, lng: e.lngLat.lng }));
@@ -197,6 +199,33 @@ export class TouringMap3D {
     this.terrainLevel = level;
     if (level) this.terrainErrors = 0;
     this._applyTerrain();
+  }
+
+  /** Neon Night skin on/off. Only paint colours and a few halo layers change; nothing is rebuilt. */
+  setSkin(on) {
+    this.skin = !!on;
+    const el = this.map.getContainer();
+    el.classList.toggle('map--neon', this.skin);
+    this._applySkin();
+  }
+
+  /** Short glitch flash when the skin is switched (CSS only). */
+  glitch() {
+    const el = this.map.getContainer();
+    el.classList.remove('map--glitch'); void el.offsetWidth; el.classList.add('map--glitch');
+    setTimeout(() => el.classList.remove('map--glitch'), 420);
+  }
+
+  _applySkin() {
+    if (!this.ready) return;
+    const on = this.skin;
+    for (const [id, prop, off, neon] of SKIN_OPS) {
+      try { this.map.setPaintProperty(id, prop, on ? neon : off); } catch { /* layer missing: skip */ }
+    }
+    for (const id of SKIN_GLOW_LAYERS) {
+      try { this.map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'); } catch { /* skip */ }
+    }
+    try { this.map.setLight(on ? LIGHT_NEON : LIGHT_DEFAULT); } catch { /* skip */ }
   }
 
   _applyTerrain() {

@@ -145,7 +145,7 @@ export const MAP_CONFIG = Object.freeze({
     pitch: 60,
     maxPitch: 75,
     // Optional relief (hills and mountains) from free elevation tiles (Terrarium encoding, AWS Open Data,
-    // no key). Off by default; the HILL button turns it on. Heavier for the phone.
+    // no key). Shown as soft hill shading whenever the 3D map is on (no separate button). The full mesh is heavier for the phone and is not offered.
     terrain: Object.freeze({
       tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
       encoding: 'terrarium',

@@ -125,7 +125,7 @@ Reading it: `path: relay` means TURN is carrying the audio; no `srflx` candidate
 
 ## 3D map
 
-Tap **3D** in the map buttons for a tilted map with 3D buildings that turns with your direction while you follow yourself. Flat map is the default. In 3D, the **HILL** button adds hills and mountains (heavier for the phone, off by default). Details and how to change the tile source: `docs/MAP-PROVIDERS.md`.
+Tap **3D** in the map buttons for a tilted map with 3D buildings that turns with your direction while you follow yourself. Flat map is the default. In 3D the hills are always there as a soft, nearly flat relief, and the **NEON** button switches the Neon Night map skin on and off (details in `docs/MAP-SKIN.md`). Details and how to change the tile source: `docs/MAP-PROVIDERS.md`.
 
 ## Room size
 

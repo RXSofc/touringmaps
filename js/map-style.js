@@ -10,6 +10,8 @@ import { ROUTE_STOPS, ROUTE_CASING } from './route-style.js';
 
 const V = MAP_CONFIG.vector;
 const EMPTY = { type: 'FeatureCollection', features: [] };
+/** Gentle relief: the map is almost flat, hills only read as a soft shading. */
+export const HILL_SOFT = 0.3;
 const zoomWidth = (...pairs) => ['interpolate', ['exponential', 1.4], ['zoom'], ...pairs];
 const inClass = (list) => ['match', ['get', 'class'], list, true, false];
 
@@ -48,7 +50,7 @@ export function buildStyle() {
   add({
     id: 'hillshade', type: 'hillshade', source: 'terrain', layout: { visibility: 'none' },
     paint: {
-      'hillshade-exaggeration': 0.55,
+      'hillshade-exaggeration': HILL_SOFT,
       'hillshade-shadow-color': '#6B6B6B',
       'hillshade-highlight-color': '#FFFFFF',
       'hillshade-accent-color': '#A8A8A8',
@@ -76,6 +78,14 @@ export function buildStyle() {
   });
 
   const tunnelOff = ['!=', ['get', 'brunnel'], 'tunnel'];
+  // neon skin only: a wide soft halo under the main roads (hidden otherwise, so the default map costs nothing extra)
+  for (const [id, classes, color, w] of [['secondary', ['secondary'], '#00f0ff', [9, 3, 14, 10, 18, 28]], ['primary', ['primary'], '#fcee0a', [8, 3, 14, 12, 18, 32]]]) {
+    add({
+      id: `road-glow-${id}`, type: 'line', source: src, 'source-layer': 'transportation', minzoom: w[0],
+      filter: ['all', tunnelOff, inClass(classes)], layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': color, 'line-width': zoomWidth(...w), 'line-blur': 6, 'line-opacity': 0.32 }
+    });
+  }
   for (const g of ROADS) {
     add({
       id: `road-casing-${g.id}`, type: 'line', source: src, 'source-layer': 'transportation', minzoom: g.casing[0],
@@ -127,6 +137,10 @@ export function buildStyle() {
   add({ id: 'accuracy-line', type: 'line', source: 'accuracy', paint: { 'line-color': '#141616', 'line-width': 1.5, 'line-dasharray': [3, 3] } });
   add({ id: 'route2-casing', type: 'line', source: 'route2', layout: { 'line-join': 'round' }, paint: { 'line-color': '#141616', 'line-width': zoomWidth(8, 4, 18, 14) } });
   add({ id: 'route2-line', type: 'line', source: 'route2', layout: { 'line-join': 'round' }, paint: { 'line-color': '#FFFFFF', 'line-width': zoomWidth(8, 1.6, 18, 6), 'line-dasharray': [2, 1.5] } });
+  add({
+    id: 'route-glow', type: 'line', source: 'route', layout: { visibility: 'none', 'line-join': 'round', 'line-cap': 'round' },
+    paint: { 'line-color': '#ff007f', 'line-width': zoomWidth(8, 10, 18, 40), 'line-blur': 8, 'line-opacity': 0.5 }
+  });
   add({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': ROUTE_CASING, 'line-width': zoomWidth(8, 5, 18, 20) } });
   add({
     id: 'route-line', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' },
@@ -184,3 +198,63 @@ export function buildStyle() {
     layers
   };
 }
+
+
+/* ------------------------------------------------------------------------------------------
+ * "Neon Night" skin: a dark, glowing night-city look for the 3D map (colours only live inside the map).
+ * Every entry is [layer, paint property, default value, neon value]; the map flips them with setPaintProperty,
+ * so the route, the riders and the hills are never rebuilt. tests/skin-test.mjs checks the defaults against buildStyle().
+ * ------------------------------------------------------------------------------------------ */
+export const NEON = Object.freeze({
+  void: '#0d0e15', charcoal: '#1a1a24', violet: '#120136', cyan: '#00f0ff', magenta: '#ff007f', yellow: '#fcee0a',
+  teal: '#008080', purple: '#400082', green: '#39ff14', white: '#e6ffff', orange: '#ff5e00'
+});
+const N = NEON;
+const NEON_ROUTE_STOPS = [[0, N.magenta], [0.55, '#ff5fb0'], [1, '#ffe3f3']];
+const gradient = (stops) => ['interpolate', ['linear'], ['line-progress'], ...stops.flat()];
+
+export const SKIN_OPS = [
+  ['background', 'background-color', '#F1F1F1', N.void],
+  ['landcover', 'fill-color', ['match', ['get', 'class'], ['wood', 'grass', 'farmland'], '#E4E4E4', '#EAEAEA'], ['match', ['get', 'class'], ['wood', 'grass', 'farmland'], '#10131c', '#0f1019']],
+  ['landuse', 'fill-color',
+    ['match', ['get', 'class'], ['residential', 'suburb', 'neighbourhood'], '#EBEBEB', ['cemetery', 'hospital', 'school', 'college', 'stadium', 'pitch'], '#E0E0E0', '#EEEEEE'],
+    ['match', ['get', 'class'], ['residential', 'suburb', 'neighbourhood'], N.charcoal, ['cemetery', 'hospital', 'school', 'college', 'stadium', 'pitch'], '#16162a', '#12131c']],
+  ['park', 'fill-color', '#DEDEDE', '#0e2428'],
+  ['water', 'fill-color', '#BEBEBE', N.violet],
+  ['waterway', 'line-color', '#BEBEBE', N.purple],
+  ['hillshade', 'hillshade-shadow-color', '#6B6B6B', '#04040a'],
+  ['hillshade', 'hillshade-highlight-color', '#FFFFFF', '#2b2f78'],
+  ['hillshade', 'hillshade-accent-color', '#A8A8A8', N.violet],
+  ['building-flat', 'fill-color', '#D9D9D9', N.charcoal],
+  ['building-flat', 'fill-outline-color', '#B5B5B5', N.purple],
+  ['rail', 'line-color', '#8C8C8C', '#7a2bd6'],
+  ['path', 'line-color', '#9C9C9C', N.teal],
+  ...ROADS.map((g) => [`road-casing-${g.id}`, 'line-color', '#141616', N.void]),
+  ['road-minor', 'line-color', '#FFFFFF', N.teal],
+  ['road-tertiary', 'line-color', '#FFFFFF', '#00a8b3'],
+  ['road-secondary', 'line-color', '#FFFFFF', N.cyan],
+  ['road-primary', 'line-color', '#FFFFFF', N.yellow],
+  ['road-motorway', 'line-color', '#9A9A9A', N.orange],     // toll-prone roads stay visibly different: hazard orange
+  ['building-outline', 'line-color', '#6E6E6E', N.cyan],
+  ['building-outline', 'line-opacity', 0.9, 0.45],
+  ['building-3d', 'fill-extrusion-color',
+    ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 5], 0, '#FFFFFF', 12, '#F0F0F0', 30, '#D9D9D9', 80, '#BDBDBD', 200, '#9A9A9A'],
+    ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 5], 0, '#1d1d2c', 12, '#26204f', 30, '#33106b', 80, '#400082', 200, '#00a8b3']],
+  ['poi-dot', 'circle-color', '#141616', N.green],
+  ['poi-dot', 'circle-stroke-color', '#FFFFFF', N.void],
+  ['accuracy-fill', 'fill-color', '#141616', N.cyan],
+  ['accuracy-fill', 'fill-opacity', 0.08, 0.14],
+  ['accuracy-line', 'line-color', '#141616', N.cyan],
+  ['route2-casing', 'line-color', '#141616', N.void],
+  ['route2-line', 'line-color', '#FFFFFF', N.cyan],
+  ['route-casing', 'line-color', ROUTE_CASING, N.violet],
+  ['route-line', 'line-gradient', gradient(ROUTE_STOPS), gradient(NEON_ROUTE_STOPS)],
+  ['road-label', 'text-color', '#141616', N.white], ['road-label', 'text-halo-color', '#FFFFFF', N.void],
+  ['place-label', 'text-color', '#141616', N.white], ['place-label', 'text-halo-color', '#FFFFFF', N.void],
+  ['poi-label', 'text-color', '#141616', N.green], ['poi-label', 'text-halo-color', '#FFFFFF', N.void],
+  ['housenumber', 'text-color', '#4D4D4D', '#8f95c4'], ['housenumber', 'text-halo-color', '#FFFFFF', N.void],
+  ['water-label', 'text-color', '#4D4D4D', N.cyan], ['water-label', 'text-halo-color', '#BEBEBE', N.violet]
+];
+export const SKIN_GLOW_LAYERS = ['road-glow-secondary', 'road-glow-primary', 'route-glow'];
+export const LIGHT_DEFAULT = { anchor: 'viewport', color: '#FFFFFF', intensity: 0.55, position: [1.2, 205, 40] };
+export const LIGHT_NEON = { anchor: 'viewport', color: '#b8a6ff', intensity: 0.5, position: [1.2, 205, 40] };

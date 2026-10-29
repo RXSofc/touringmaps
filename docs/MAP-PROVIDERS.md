@@ -96,9 +96,9 @@ MapLibre map with extruded buildings. The flat map stays the default; the choice
 - Points of interest: dots from zoom 15.5, names from zoom 16. House numbers from zoom 17.5. Water names from zoom 10. Names need the glyph server (`MAP_CONFIG.vector.glyphs`); the dots do not.
 - The detail level is bounded by OpenStreetMap: where nobody mapped building heights or shops, there is nothing to draw.
 
-### Hills and mountains (HILL button, 3D map only)
+### Hills and mountains (part of the 3D button)
 
-- Off by default. Tapping HILL cycles three steps: **off, hill shading, full 3D terrain (HILL+), off**. Relief comes from free elevation tiles (Terrarium encoding on AWS Open Data, no key). Settings: `MAP_CONFIG.vector.terrain` in `js/map-config.js` (tile URL, `maxZoom`, `exaggeration`, `errorsBeforeOff`, `slowFrameMs`).
+- There is no separate HILL button any more: the 3D map always shows a soft, nearly flat relief (hill shading at exaggeration `HILL_SOFT` = 0.3 in `js/map-style.js`). The full 3D terrain mesh code is still in `map3d.js` (`setTerrain(2)`) but is not offered. Relief comes from free elevation tiles (Terrarium encoding on AWS Open Data, no key). Settings: `MAP_CONFIG.vector.terrain` in `js/map-config.js` (tile URL, `maxZoom`, `exaggeration`, `errorsBeforeOff`, `slowFrameMs`).
 - **Hill shading** only paints a shaded layer: cheap, fine on mid-range phones. **Full 3D terrain** lifts the ground itself and drapes every layer over it, which is heavy; while it is on, extruded buildings are swapped for flat footprints to save work.
 - Elevation tiles stop at zoom 12 and are stretched beyond that (about 8x fewer tiles to fetch and decode than zoom 15).
 - Safety nets: if elevation tiles keep failing, hills switch off by themselves. If full terrain renders slower than about 9 fps on average (or a few frames take over 0.4 s), it drops back to hill shading by itself, remembers that on this phone (`tt.terrainFullBad`) and skips that step from then on.
@@ -110,7 +110,7 @@ MapLibre map with extruded buildings. The flat map stays the default; the choice
 - Points of interest: dots from zoom 15.5, names from zoom 16. House numbers from zoom 17.5. Water names from zoom 10. Names need the glyph server (`MAP_CONFIG.vector.glyphs`); the dots do not.
 - The detail level is bounded by OpenStreetMap: where nobody mapped building heights or shops, there is nothing to draw.
 
-### Hills and mountains (HILL button, 3D map only)
+### Hills and mountains (part of the 3D button)
 
 - Off by default. Turns on real relief from free elevation tiles (Terrarium encoding on AWS Open Data, no key) plus a grayscale hillshade. Settings: `MAP_CONFIG.vector.terrain` in `js/map-config.js` (tile URL, `exaggeration`, `errorsBeforeOff`).
 - It is heavier for the phone (extra tiles and a 3D height mesh). If elevation tiles keep failing, the map switches hills off by itself and keeps working.

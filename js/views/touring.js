@@ -75,7 +75,8 @@ export function touringView(roomId) {
     voiceMode: storage.get('tt.voiceMode') === 'toggle' ? 'toggle' : 'hold',   // hold the button, or tap to start/stop
     guidance: APP.guidance.enabled && storage.get('tt.guidance') !== '0',   // turn alerts (per device)
     map3d: false,               // 3D (MapLibre) map active; remembered per device
-    terrain: (() => { const v = storage.get('tt.terrain'); return v === '2' && storage.get('tt.terrainFullBad') !== '1' ? 2 : v === '1' || v === '2' ? 1 : 0; })(),   // 3D map hills: 0 off, 1 shading, 2 full terrain
+    terrain: 1,   // 3D map hills are part of the 3D button now: always a soft, nearly flat relief (0 only if the elevation tiles fail)
+    skin: storage.get('tt.skin') === '1',   // Neon Night map skin (3D map only)
     voiceMicHinted: false,
     backgroundGapMs: null,
     destNotice: null,           // {text}
@@ -135,9 +136,9 @@ export function touringView(roomId) {
     els.btnDest = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Go to destination', title: 'Go to destination', onclick: () => { state.following = false; if (!map.focusDestination()) toast('No destination set yet.', { type: 'info' }); } }, icon('flag'));
     els.btnRoute = h('button', { class: 'btn btn--icon', type: 'button', 'aria-pressed': 'true', 'aria-label': 'Show or hide route', title: 'Show or hide route', onclick: () => { state.routeVisible = !state.routeVisible; map.setRouteVisible(state.routeVisible); render(); } }, icon('route'));
     els.btn3d = h('button', { class: 'btn btn--icon btn--3d', type: 'button', 'aria-pressed': 'false', 'aria-label': '3D map', title: '3D map (tilted, follows your direction)', onclick: () => setMapMode(!state.map3d) }, h('span', { class: 'btn3d__label' }, '3D'));
-    els.btnTerrain = h('button', { class: 'btn btn--icon btn--3d', type: 'button', hidden: true, 'aria-pressed': 'false', 'aria-label': 'Hills and mountains', title: 'Hills and mountains (3D map)', onclick: onToggleTerrain }, h('span', { class: 'btn3d__label btn3d__label--sm' }, 'HILL'));
+    els.btnSkin = h('button', { class: 'btn btn--icon btn--3d', type: 'button', hidden: true, 'aria-pressed': 'false', 'aria-label': 'Neon Night map skin', title: 'Neon Night map skin (3D map)', onclick: onToggleSkin }, h('span', { class: 'btn3d__label btn3d__label--sm' }, 'NEON'));
     els.btnLegend = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Map legend', title: 'Map legend', 'aria-expanded': 'false', onclick: () => { state.legendOpen = !state.legendOpen; render(); } }, icon('layers'));
-    els.controls = h('div', { class: 'map-controls' }, els.btnLocate, els.btnFit, els.btnDest, els.btnRoute, els.btn3d, els.btnTerrain, els.btnLegend);
+    els.controls = h('div', { class: 'map-controls' }, els.btnLocate, els.btnFit, els.btnDest, els.btnRoute, els.btn3d, els.btnSkin, els.btnLegend);
 
     els.legend = h('div', { class: 'legend panel', hidden: true },
       h('div', { class: 'legend__row' }, h('span', { class: 'dot dot--self' }), 'You'),
@@ -262,10 +263,8 @@ export function touringView(roomId) {
     map.setFollow(state.following && state.myFix ? uid : null);
     els.btnRoute.setAttribute('aria-pressed', String(state.routeVisible));
     els.btn3d.setAttribute('aria-pressed', String(state.map3d));
-    els.btnTerrain.hidden = !state.map3d;
-    els.btnTerrain.setAttribute('aria-pressed', String(state.terrain > 0));
-    if (els.btnTerrain.firstChild) els.btnTerrain.firstChild.textContent = state.terrain === 2 ? 'HILL+' : 'HILL';
-    els.btnTerrain.title = state.terrain === 2 ? 'Full 3D terrain (tap to turn off)' : state.terrain === 1 ? 'Hill shading (tap for full 3D terrain)' : 'Hills (3D map)';
+    els.btnSkin.hidden = !state.map3d;
+    els.btnSkin.setAttribute('aria-pressed', String(state.skin));
     els.btnLegend.setAttribute('aria-expanded', String(state.legendOpen));
     els.legend.hidden = !state.legendOpen;
 
@@ -889,13 +888,8 @@ export function touringView(roomId) {
       },
       onUserPan: () => { if (state.following) { state.following = false; render(); } },
       onTerrainError: () => {
-        state.terrain = 0; storage.set('tt.terrain', '0');
+        state.terrain = 0;
         toast('Hills could not load here, so they are off. The 3D map still works.', { type: 'warning', timeout: 5000 });
-        render();
-      },
-      onTerrainSlow: () => {
-        state.terrain = 1; storage.set('tt.terrain', '1'); storage.set('tt.terrainFullBad', '1');
-        toast('Full 3D terrain was too heavy for this phone, so it went back to hill shading.', { type: 'warning', timeout: 6000 });
         render();
       },
       onTileError: () => {
@@ -916,17 +910,16 @@ export function touringView(roomId) {
     map.setOtherRoute(state.otherRoute?.route?.coords || null);
     map.setRouteVisible(state.routeVisible);
     map.setRouteDim(!!state.route?.rerouting || !!state.route?.route?.blockedClasses?.length);
-    map.setTerrain(state.terrain);
+    map.setTerrain?.(state.terrain);
+    map.setSkin?.(state.skin);
   }
 
-  function onToggleTerrain() {
-    // off -> hill shading (cheap) -> full 3D terrain (heavy, skipped on phones where it already proved too slow) -> off
-    const fullBad = storage.get('tt.terrainFullBad') === '1';
-    state.terrain = state.terrain === 0 ? 1 : (state.terrain === 1 && !fullBad ? 2 : 0);
-    storage.set('tt.terrain', String(state.terrain));
-    map.setTerrain(state.terrain);
-    if (state.terrain === 1) toast(fullBad ? 'Hill shading on.' : 'Hill shading on. Tap HILL again for full 3D terrain (heavier).', { type: 'info', timeout: 3500 });
-    if (state.terrain === 2) toast('Full 3D terrain on. Heavy: it switches itself off if the map gets slow.', { type: 'info', timeout: 4500 });
+  function onToggleSkin() {
+    if (!map?.setSkin) return;
+    state.skin = !state.skin;
+    storage.set('tt.skin', state.skin ? '1' : '0');
+    map.setSkin(state.skin);
+    map.glitch?.();
     render();
   }
 

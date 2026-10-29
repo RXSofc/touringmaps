@@ -539,6 +539,7 @@ button.chip--button:active { transform: translate(2px, 2px); }
   color: var(--color-bg);
   background: var(--color-text);
 }
+.dest-marker .dest-svg--neon { display: none; }
 .dest-marker.is-preview svg { opacity: 0.8; }
 .dest-marker.is-preview .dest-marker__label { background: var(--color-surface); color: var(--color-text); border: 2px dashed var(--color-black); }
 
@@ -546,3 +547,32 @@ button.chip--button:active { transform: translate(2px, 2px); }
 
 /* dots and avatars that sit on black surfaces */
 .chip--success .dot, .banner--success .dot, .banner--voice .dot { background: var(--color-white); border-color: var(--color-white); }
+
+
+/* ============ Neon Night skin (3D map only): colours live inside the map and its markers ============ */
+.map--neon .dest-marker .dest-svg--std { display: none; }
+.map--neon .dest-marker .dest-svg--neon { display: block; }
+.map--neon .dest-marker__label { background: #0d0e15; color: #fcee0a; border: 2px solid #fcee0a; line-height: 11px; }
+.map--neon .dest-marker.is-preview .dest-marker__label { background: #0d0e15; border-style: dashed; color: #00f0ff; border-color: #00f0ff; }
+.map--neon .rider-marker__avatar { background: #0d0e15; border-color: #00f0ff; box-shadow: 3px 3px 0 #ff007f; }
+.map--neon .rider-marker__pointer { border-top-color: #00f0ff; }
+.map--neon .rider-marker__status { border-color: #0d0e15; background: #746D67; }
+.map--neon .rider-marker.is-live .rider-marker__status { background: #39ff14; }
+.map--neon .rider-marker.is-stale .rider-marker__status { background: #fcee0a; }
+.map--neon .rider-marker__label, .map--neon .rider-marker__age { background: #0d0e15; color: #e6ffff; border-color: #00f0ff; }
+.map--neon .rider-marker.is-self .rider-marker__avatar { border-color: #fcee0a; box-shadow: 0 0 0 2px #0d0e15, 0 0 0 5px #fcee0a, 3px 3px 0 5px #ff007f; }
+.map--neon .rider-marker.is-self .rider-marker__label { border-color: #fcee0a; }
+.map--neon .rider-marker.is-selected .rider-marker__avatar { box-shadow: 0 0 0 3px #0d0e15, 0 0 0 6px #ff007f, 4px 4px 0 6px #00f0ff; }
+.map--neon .rider-marker.is-selected .rider-marker__label, .map--neon .rider-marker.is-talking .rider-marker__label { background: #ff007f; color: #0d0e15; border-color: #ff007f; }
+.map--neon .rider-marker.is-talking .rider-marker__avatar { outline-color: #39ff14; }
+.map--neon .rider-marker.is-stale .rider-marker__avatar, .map--neon .rider-marker.is-offline .rider-marker__avatar, .map--neon .rider-marker.is-lost .rider-marker__avatar { border-color: #746D67; }
+.map--neon .maplibregl-ctrl-attrib { background: #0d0e15 !important; border-color: #00f0ff; }
+.map--neon .maplibregl-ctrl-attrib a { color: #00f0ff; }
+/* a 0.4 s glitch flash when the skin is switched */
+.map--glitch::after {
+  content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0, 240, 255, 0.55) 0 6px, transparent 6px 22px, rgba(255, 0, 127, 0.5) 22px 26px, transparent 26px 50px);
+  animation: glitch 0.4s steps(6, end) 1 both;
+}
+@keyframes glitch { 0% { opacity: 0.9; transform: translateX(-8px); } 33% { opacity: 0.5; transform: translateX(10px); } 66% { opacity: 0.8; transform: translateX(-4px); } 100% { opacity: 0; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .map--glitch::after { animation: none; opacity: 0; } }

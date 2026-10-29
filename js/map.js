@@ -40,14 +40,31 @@ export function buildRiderEl(r) {
 
 export function destinationEl(preview) {
   const ns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('viewBox', '0 0 64 64');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.innerHTML =
+  const make = (cls, inner) => {
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 64 64');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('class', cls);
+    svg.innerHTML = inner;
+    return svg;
+  };
+  // standard: the brutalist finish flag
+  const flag = make('dest-svg dest-svg--std',
     '<path d="M14 58V6" stroke="#141616" stroke-width="6" fill="none"/>' +
     '<path d="M17 8h38l-8 12 8 12H17z" fill="#7F1D1A" stroke="#141616" stroke-width="4" stroke-linejoin="miter"/>' +
-    '<path d="M24 10h8v8h-8zM40 10h8v8h-8zM32 18h8v8h-8zM24 26h8v4h-8zM40 26h6v4h-6z" fill="#E6E3E1"/>';
-  return h('div', { class: `dest-marker${preview ? ' is-preview' : ''}` }, svg,
+    '<path d="M24 10h8v8h-8zM40 10h8v8h-8zM32 18h8v8h-8zM24 26h8v4h-8zM40 26h6v4h-6z" fill="#E6E3E1"/>');
+  // neon skin: a holographic beacon. A glowing ring on the ground at the exact spot, a beam, and a data-tag
+  // banner with a magenta/cyan finish-line check. The ring centre sits where the flag pole stands, so the position is the same.
+  const beacon = make('dest-svg dest-svg--neon',
+    '<ellipse cx="14" cy="58" rx="13" ry="5" fill="none" stroke="#ff007f" stroke-width="7" opacity="0.28"/>' +
+    '<ellipse cx="14" cy="58" rx="13" ry="5" fill="#0d0e15" stroke="#ff007f" stroke-width="2.5"/>' +
+    '<ellipse cx="14" cy="58" rx="6" ry="2.5" fill="none" stroke="#00f0ff" stroke-width="2"/>' +
+    '<path d="M14 58V8" stroke="#00f0ff" stroke-width="7" opacity="0.25"/><path d="M14 58V8" stroke="#00f0ff" stroke-width="2.5"/>' +
+    '<path d="M17 6h34l6 6v18l-6 6H17z" fill="#0d0e15" stroke="#fcee0a" stroke-width="3" stroke-linejoin="miter"/>' +
+    '<path d="M22 11h7v7h-7zM36 11h7v7h-7zM29 18h7v7h-7zM43 18h7v7h-7zM22 25h7v6h-7zM36 25h7v6h-7z" fill="#ff007f"/>' +
+    '<path d="M29 11h7v7h-7zM43 11h7v7h-7zM22 18h7v7h-7zM36 18h7v7h-7zM29 25h7v6h-7zM43 25h7v6h-7z" fill="#00f0ff"/>' +
+    '<path d="M10 6l4-5 4 5z" fill="#fcee0a"/>');
+  return h('div', { class: `dest-marker${preview ? ' is-preview' : ''}` }, flag, beacon,
     h('div', { class: 'dest-marker__label' }, preview ? 'PREVIEW' : 'DEST'));
 }
 
