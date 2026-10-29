@@ -584,3 +584,6 @@ body[data-route="dashboard"][data-bg="contour"]::after, body[data-route="profile
 body[data-bg="contour"][data-route="dashboard"] .page__brand, body[data-bg="contour"][data-route="dashboard"] .status,
 body[data-bg="contour"][data-route="profile"] .page__title { background: var(--ink); padding: 0.3rem 0.6rem; }
 body[data-bg="contour"][data-route="profile"] .page__title { padding: 0.1rem 0.6rem; }
+
+/* spoken navigation options in the room sheet */
+.speech-opts { display: grid; gap: var(--space-3); padding: var(--space-3); border: var(--border-1); border-radius: var(--radius); background: var(--color-bg); }

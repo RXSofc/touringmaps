@@ -48,9 +48,11 @@ function parseOsrmRoute(route) {
     for (const st of leg.steps || []) {
       const m = st.maneuver;
       if (!m || !Array.isArray(m.location)) continue;
-      for (const inter of st.intersections || []) for (const c of inter.classes || []) classes.add(c);
+      const stepClasses = new Set();
+      for (const inter of st.intersections || []) for (const c of inter.classes || []) { classes.add(c); stepClasses.add(c); }
       // belt and braces: a road literally called "Tol ..." / "... Toll" counts as toll even when untagged
-      if (/(^|[^a-z])(tol|toll)([^a-z]|$)/i.test(`${st.name || ''} ${st.ref || ''}`)) classes.add('toll');
+      const tolled = /(^|[^a-z])(tol|toll)([^a-z]|$)/i.test(`${st.name || ''} ${st.ref || ''}`);
+      if (tolled) classes.add('toll');
       steps.push({
         type: m.type,
         modifier: m.modifier || null,
@@ -58,6 +60,8 @@ function parseOsrmRoute(route) {
         bearingAfter: Number.isFinite(m.bearing_after) ? m.bearing_after : null,
         name: String(st.name || ''),
         distance: Number.isFinite(st.distance) ? st.distance : 0,
+        toll: tolled || stepClasses.has('toll'),
+        tunnel: stepClasses.has('tunnel'),
         location: [m.location[1], m.location[0]]       // [lat, lng]
       });
     }

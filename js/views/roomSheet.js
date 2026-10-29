@@ -116,7 +116,21 @@ export function openRoomSheet({ getState, actions, onClose }) {
           ? setting('Tap to talk', 'Off: hold the mic button while you speak. On: tap once to start, tap again to stop.', s.voiceMode === 'toggle', (e) => actions.setVoiceMode(e.currentTarget.checked ? 'toggle' : 'hold'))
           : null,
         s.guidanceSupported
-          ? setting('Turn alerts', 'A popup and vibration before turns, roundabouts and the destination. No sound. Works only while the screen is on.', s.guidance, (e) => actions.setGuidance(e.currentTarget.checked))
+          ? setting('Turn alerts', 'A popup and vibration before turns, roundabouts and the destination. The voice is a separate switch below. Works only while the screen is on.', s.guidance, (e) => actions.setGuidance(e.currentTarget.checked))
+          : null,
+        s.speech?.supported
+          ? setting('Spoken navigation', 'Reads the turns, warnings and arrival out loud with the phone’s own text-to-speech. Works only while the screen is on, and needs Turn alerts on. The same button is on the map.', s.speech.enabled, (e) => actions.setSpeech(e.currentTarget.checked))
+          : null,
+        s.speech?.supported && s.speech.enabled
+          ? h('div', { class: 'speech-opts' },
+            h('div', { class: 'field' }, h('label', { for: 'sp-voice' }, 'Voice'),
+              h('select', { class: 'input', id: 'sp-voice', onchange: (e) => actions.setSpeechVoice(e.currentTarget.value) },
+                h('option', { value: '', selected: !s.speech.voiceName }, s.speech.voices.length ? 'Automatic (female if found)' : 'Phone default (no Indonesian voice found)'),
+                ...s.speech.voices.map((v) => h('option', { value: v.name, selected: v.name === s.speech.voiceName }, `${v.name} (${v.lang})`)))),
+            h('div', { class: 'field' }, h('label', { for: 'sp-rate' }, 'Speed'),
+              h('select', { class: 'input', id: 'sp-rate', onchange: (e) => actions.setSpeechRate(e.currentTarget.value) },
+                ...[['0.9', 'Slow'], ['1', 'Normal'], ['1.15', 'Fast'], ['1.3', 'Very fast']].map(([val, label]) => h('option', { value: val, selected: Number(val) === s.speech.rate }, label)))),
+            h('button', { class: 'btn btn--block', type: 'button', onclick: () => actions.testSpeech() }, icon('volume'), 'Test voice'))
           : null,
         s.regionSupported
           ? setting('Region alerts', 'A short popup with the weather shortly before you enter another kabupaten or kota. Needs internet.', s.regionAlerts, (e) => actions.setRegionAlerts(e.currentTarget.checked))
@@ -135,7 +149,7 @@ export function openRoomSheet({ getState, actions, onClose }) {
     close: sheet.close,
     update() {
       // Don't clobber a field the person is typing in.
-      if (sheet.sheet.contains(document.activeElement) && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName) && document.activeElement.type !== 'checkbox') return;
+      if (sheet.sheet.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && document.activeElement.type !== 'checkbox') return;
       render();
     }
   };

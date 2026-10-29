@@ -30,7 +30,7 @@ export function isFirebaseConfigured() {
 
 export const APP = Object.freeze({
   name: 'VEXLANE',
-  version: '2026.10.29-2',   // shown on the sign-in screen so you can tell which build is running
+  version: '2026.10.29-3',   // shown on the sign-in screen so you can tell which build is running
 
   limits: Object.freeze({
     defaultMembers: 6,          // room size when the owner does not choose
@@ -107,6 +107,18 @@ export const APP = Object.freeze({
     warnMovingMs: 8000,                            // …but only while the rider is still moving (stopped for this long = quiet)
     awayM: 150,                                    // no route: this far beyond the closest approach to the destination = "menjauh"
     awayTurnBackM: 60                              // …and turning back by this much clears it
+  }),
+
+  /** The spoken navigation (js/speech.js, js/voicenav.js, js/voicelines.js). Off until the rider turns it on. */
+  speech: Object.freeze({
+    enabled: true,
+    straightMinM: 1500,         // a stretch with no turn at least this long gets a "keep going straight"…
+    straightFirstM: 120,        // …said this far after the previous turn
+    straightEveryM: 3000,       // …and repeated this often while it lasts
+    speedWarnKmh: 90,           // "slow down" above this speed (fixed number, not the road's real limit)
+    speedHoldMs: 5000, speedCooldownMs: 45000,
+    awayRepeatMs: 12000,        // no route and going away from the destination: say it again this often
+    crawlNeedMs: 90000          // creeping at 1 to 18 km/h this long after riding normally = "macet"
   }),
 
   /** "Sebentar lagi memasuki …" popup with the weather of the next kabupaten/kota (js/regionwatch.js). */

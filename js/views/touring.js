@@ -18,6 +18,10 @@ import { LocationTracker, LocationPublisher } from '../location.js';
 import { PositionFilter } from '../gps-filter.js';
 import { TurnGuide } from '../guidance.js';
 import { WrongWayWatch } from '../wrongway.js';
+import { SpeechGuide } from '../speech.js';
+import { VoiceNav } from '../voicenav.js';
+import { CrawlWatch, SpeedWatch } from '../trafficwatch.js';
+import { lines as voiceLines } from '../voicelines.js';
 import { queryGeoPermission, watchGeoPermission, describePermission, PERMISSION_HELP, WakeLock } from '../permissions.js';
 import { TouringMap } from '../map.js';
 import { TouringMap3D, loadMapLibre, webglSupported } from '../map3d.js';
@@ -76,6 +80,7 @@ export function touringView(roomId) {
     guidance: APP.guidance.enabled && storage.get('tt.guidance') !== '0',   // turn alerts (per device)
     map3d: false,               // 3D (MapLibre) map active; remembered per device
     terrain: 1,   // 3D map hills are part of the 3D button now: always a soft, nearly flat relief (0 only if the elevation tiles fail)
+    speech: storage.get('tt.speech') === '1',   // spoken navigation (browser text-to-speech), off until the rider turns it on
     skin: storage.get('tt.skin') === '1',   // Neon Night map skin (3D map only)
     voiceMicHinted: false,
     backgroundGapMs: null,
@@ -100,6 +105,17 @@ export function touringView(roomId) {
   // Wrong way (off the route, or heading away from the destination): the warning repeats until it is fixed.
   const wrongWayWatch = new WrongWayWatch({ awayM: APP.guidance.awayM, turnBackM: APP.guidance.awayTurnBackM });
   let lastWarnAt = 0;
+  // Spoken navigation: the browser's own text-to-speech, driven by the same route and position as the popups.
+  const speech = new SpeechGuide();
+  speech.rate = Number(storage.get('tt.speechRate')) || 1;
+  speech.voiceName = storage.get('tt.speechVoice') || '';
+  speech.setEnabled(state.speech && APP.speech.enabled);
+  const sayIf = (text, opts) => { if (state.guidance && state.speech) speech.say(text, opts); };
+  const voiceNav = new VoiceNav({ ...APP.guidance, ...APP.speech }, sayIf);
+  const crawlWatch = new CrawlWatch({ needMs: APP.speech.crawlNeedMs });
+  const speedWatch = new SpeedWatch({ limitKmh: APP.speech.speedWarnKmh, holdMs: APP.speech.speedHoldMs, cooldownMs: APP.speech.speedCooldownMs });
+  let awaitingNewRoute = false;      // true from "you left the route" until the new route arrives
+  let voiceStartedFor = null;        // destination the trip-start line was already said for
   let lastMovedAt = 0;
   let moveRef = null;
   let lastGuidedRoute = null;
@@ -136,9 +152,10 @@ export function touringView(roomId) {
     els.btnDest = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Go to destination', title: 'Go to destination', onclick: () => { state.following = false; if (!map.focusDestination()) toast('No destination set yet.', { type: 'info' }); } }, icon('flag'));
     els.btnRoute = h('button', { class: 'btn btn--icon', type: 'button', 'aria-pressed': 'true', 'aria-label': 'Show or hide route', title: 'Show or hide route', onclick: () => { state.routeVisible = !state.routeVisible; map.setRouteVisible(state.routeVisible); render(); } }, icon('route'));
     els.btn3d = h('button', { class: 'btn btn--icon btn--3d', type: 'button', 'aria-pressed': 'false', 'aria-label': '3D map', title: '3D map (tilted, follows your direction)', onclick: () => setMapMode(!state.map3d) }, h('span', { class: 'btn3d__label' }, '3D'));
+    els.btnSpeak = h('button', { class: 'btn btn--icon', type: 'button', hidden: !speech.supported || !APP.speech.enabled, 'aria-pressed': 'false', 'aria-label': 'Spoken navigation', title: 'Spoken navigation', onclick: onToggleSpeech }, icon('volume'));
     els.btnSkin = h('button', { class: 'btn btn--icon btn--3d', type: 'button', hidden: true, 'aria-pressed': 'false', 'aria-label': 'Neon Night map skin', title: 'Neon Night map skin (3D map)', onclick: onToggleSkin }, h('span', { class: 'btn3d__label btn3d__label--sm' }, 'NEON'));
     els.btnLegend = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Map legend', title: 'Map legend', 'aria-expanded': 'false', onclick: () => { state.legendOpen = !state.legendOpen; render(); } }, icon('layers'));
-    els.controls = h('div', { class: 'map-controls' }, els.btnLocate, els.btnFit, els.btnDest, els.btnRoute, els.btn3d, els.btnSkin, els.btnLegend);
+    els.controls = h('div', { class: 'map-controls' }, els.btnLocate, els.btnFit, els.btnDest, els.btnRoute, els.btn3d, els.btnSkin, els.btnSpeak, els.btnLegend);
 
     els.legend = h('div', { class: 'legend panel', hidden: true },
       h('div', { class: 'legend__row' }, h('span', { class: 'dot dot--self' }), 'You'),
@@ -263,6 +280,8 @@ export function touringView(roomId) {
     map.setFollow(state.following && state.myFix ? uid : null);
     els.btnRoute.setAttribute('aria-pressed', String(state.routeVisible));
     els.btn3d.setAttribute('aria-pressed', String(state.map3d));
+    els.btnSpeak.setAttribute('aria-pressed', String(state.speech));
+    els.btnSpeak.replaceChildren(icon(state.speech ? 'volume' : 'volume-off'));
     els.btnSkin.hidden = !state.map3d;
     els.btnSkin.setAttribute('aria-pressed', String(state.skin));
     els.btnLegend.setAttribute('aria-expanded', String(state.legendOpen));
@@ -304,6 +323,16 @@ export function touringView(roomId) {
   }
   const usableRoute = () => !!state.route?.route && state.route.status === 'ok' && !state.route.route.blockedClasses?.length;
 
+  /** Feeds the spoken navigation: turns along the route, speed warning, probable traffic jam. */
+  function updateSpeech(fix) {
+    if (!state.speech || !state.guidance) return;
+    const now = Date.now();
+    if (guide?.active && guide.hasFix && !guide.offRoute) voiceNav.update({ alongM: guide.alongM, speed: fix.speed, arrived: guide.arrived });
+    if (speedWatch.update(fix.speed, now)) speech.say(voiceLines.speed(), { urgent: true, key: 'speed' });
+    const dest = state.destination;
+    if (crawlWatch.update(fix.speed, now) && usableRoute() && dest && !guide?.arrived && haversine(fix, dest) > 300) speech.say(voiceLines.jam(), { key: 'jam' });
+  }
+
   /** Decide whether the rider is going the wrong way: off the route, or (no route to judge by) away from the destination. */
   function updateWrongWay(fix) {
     const now = Date.now();
@@ -320,6 +349,7 @@ export function touringView(roomId) {
     state.wrongWay = next;
     if (next === 'away') { lastWarnAt = now; vibrate('wrong'); }
     if (!next) { try { navigator.vibrate?.(0); } catch { /* ignore */ } }
+    if (next === 'away') sayIf(voiceLines.away(), { urgent: true, key: 'away', gapMs: APP.speech.awayRepeatMs });
   }
 
   /** Repeats the vibration every few seconds while the rider is still going the wrong way; silent once stopped. */
@@ -328,6 +358,7 @@ export function touringView(roomId) {
     const now = Date.now();
     if (now - lastMovedAt > APP.guidance.warnMovingMs) return;
     if (now - lastWarnAt >= APP.guidance.warnRepeatMs) { lastWarnAt = now; vibrate('wrong'); }
+    if (state.wrongWay === 'away') sayIf(voiceLines.away(), { key: 'away', gapMs: APP.speech.awayRepeatMs });
   }
   const roundTo10 = (m) => (m >= 1000 ? m : Math.max(10, Math.round(m / 10) * 10));
 
@@ -697,7 +728,8 @@ export function touringView(roomId) {
         uid, isOwner: isOwner(), meta: state.meta, members: state.members, banned: state.banned,
         settings: state.settings, memberCount: memberCount(), keepAwake: state.keepAwake, voiceMode: state.voiceMode, voiceSupported: VOICE_SUPPORTED && APP.voice.enabled,
         guidance: state.guidance, guidanceSupported: APP.guidance.enabled,
-        regionAlerts: state.regionAlerts, regionSupported: APP.region.enabled
+        regionAlerts: state.regionAlerts, regionSupported: APP.region.enabled,
+        speech: { supported: speech.supported && APP.speech.enabled, enabled: state.speech, voices: speech.voices().map((v) => ({ name: v.name, lang: v.lang })), voiceName: speech.voiceName, rate: speech.rate }
       }),
       actions: {
         removeMember: async (targetUid, m) => { try { await removeMember(roomId, targetUid, m); toast(`${m.displayName} was removed.`, { type: 'info' }); } catch (e) { toast(e.message, { type: 'error' }); } },
@@ -728,6 +760,10 @@ export function touringView(roomId) {
         setVoiceMode: (mode) => { state.voiceMode = mode === 'toggle' ? 'toggle' : 'hold'; storage.set('tt.voiceMode', state.voiceMode); if (voice?.holding) endTalk(); render(); },
         openVoiceDiag: () => { if (voiceSheet) return; voiceSheet = openVoiceSheet({ voice, getContext: () => ({ version: APP.version }), onClose: () => { voiceSheet = null; } }); },
         setGuidance: (on) => { state.guidance = !!on; storage.set('tt.guidance', on ? '1' : '0'); render(); },
+        setSpeech: (on) => { if (!!on !== state.speech) onToggleSpeech(); },
+        setSpeechVoice: (name) => { speech.voiceName = name || ''; storage.set('tt.speechVoice', speech.voiceName); speech.say(voiceLines.test(), { urgent: true }); },
+        setSpeechRate: (r) => { speech.rate = Number(r) || 1; storage.set('tt.speechRate', String(speech.rate)); speech.say(voiceLines.test(), { urgent: true }); },
+        testSpeech: () => { if (!speech.say(voiceLines.test(), { urgent: true })) toast('Turn spoken navigation on first.', { type: 'info' }); },
         setRegionAlerts: (on) => { state.regionAlerts = !!on; storage.set('tt.region', on ? '1' : '0'); if (!on) regionWatch?.reset(); },
         setKeepAwake: async (on) => {
           state.keepAwake = on;
@@ -807,6 +843,7 @@ export function touringView(roomId) {
     if (state.perm !== 'granted') state.perm = 'granted';
     if (state.backgroundGapMs) state.backgroundGapMs = null;
     if (state.guidance) guide?.update(fix);
+    updateSpeech(fix);
     updateWrongWay(fix);
     if (state.regionAlerts) regionWatch?.update(fix, state.route?.route?.coords || null);
     routeManager.updateOrigin(fix);
@@ -914,6 +951,20 @@ export function touringView(roomId) {
     map.setSkin?.(state.skin);
   }
 
+  function onToggleSpeech() {
+    if (!speech.supported) { toast('This browser has no speech. Popups and vibration still work.', { type: 'warning' }); return; }
+    state.speech = !state.speech;
+    storage.set('tt.speech', state.speech ? '1' : '0');
+    speech.setEnabled(state.speech);
+    if (state.speech) {
+      // this tap is the user gesture the browser wants before it lets a page speak
+      speech.say(voiceLines.on(), { urgent: true });
+      if (!speech.hasIndonesian()) toast('No Indonesian voice found on this phone, so the default voice reads it. Install one in the phone’s text-to-speech settings.', { type: 'warning', timeout: 6500 });
+      else if (!state.guidance) toast('Turn alerts are off, so nothing will be spoken on the road. Turn them on in the room menu.', { type: 'info', timeout: 5000 });
+    }
+    render();
+  }
+
   function onToggleSkin() {
     if (!map?.setSkin) return;
     state.skin = !state.skin;
@@ -970,23 +1021,31 @@ export function touringView(roomId) {
           state.route = rs;
           if (rs.status === 'ok' && rs.route) {
             if (rs.route !== lastDrawnRoute) { lastDrawnRoute = rs.route; map.setRoute(rs.route.coords); }
-            if (rs.route !== lastGuidedRoute) { lastGuidedRoute = rs.route; guide?.setRoute(rs.route); }
-          } else if (!rs.route && lastGuidedRoute) { lastGuidedRoute = null; guide?.setRoute(null); }
+            if (rs.route !== lastGuidedRoute) {
+              lastGuidedRoute = rs.route; guide?.setRoute(rs.route);
+              const destKey = state.destination ? `${state.destination.latitude},${state.destination.longitude}` : '';
+              const mode = awaitingNewRoute ? 'rerouted' : destKey && destKey !== voiceStartedFor ? 'start' : 'quiet';
+              awaitingNewRoute = false; if (mode === 'start') voiceStartedFor = destKey;
+              crawlWatch.reset(); voiceNav.setRoute(rs.route, { mode });
+            }
+          } else if (!rs.route && lastGuidedRoute) { lastGuidedRoute = null; guide?.setRoute(null); voiceNav.setRoute(null); }
           else if (!state.destination) { lastDrawnRoute = null; map.setRoute(null); }
           // faded while re-routing, or when the route touches a toll road (not usable for a motorcycle)
           const tolled = !!rs.route?.blockedClasses?.length;
           map.setRouteDim(!!rs.rerouting || tolled);
-          if (tolled && rs.route !== lastTollWarned) { lastTollWarned = rs.route; vibrate('toll'); }
+          if (tolled && rs.route !== lastTollWarned) { lastTollWarned = rs.route; vibrate('toll'); sayIf(voiceLines.toll(), { urgent: true, key: 'toll' }); }
           render();
         }
       });
       cleanups.push(() => routeManager.destroy());
 
+      cleanups.push(speech.onVoices(() => roomSheet?.update()));
+      speech.isBlocked = () => !!voice && (voice.transmitting || voice.talkers().length > 0);
       guide = new TurnGuide(APP.guidance, {
         onAlert: ({ stage, maneuver }) => vibrate(maneuver.step.type === 'arrive' ? 'arrive' : stage),
-        onOffRoute: () => { lastWarnAt = Date.now(); vibrate('offroute'); routeManager.reroute(APP.guidance.rerouteMinIntervalMs, APP.guidance.rerouteRetries); }
+        onOffRoute: () => { lastWarnAt = Date.now(); vibrate('offroute'); awaitingNewRoute = true; sayIf(voiceLines.offRoute(), { urgent: true, key: 'off', gapMs: 8000 }); routeManager.reroute(APP.guidance.rerouteMinIntervalMs, APP.guidance.rerouteRetries); }
       });
-      cleanups.push(() => { guide = null; try { navigator.vibrate?.(0); } catch { /* ignore */ } });
+      cleanups.push(() => { guide = null; speech.setEnabled(false); try { navigator.vibrate?.(0); } catch { /* ignore */ } });
 
       regionWatch = new RegionWatch({
         cfg: APP.region,
