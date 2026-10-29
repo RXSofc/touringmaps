@@ -11,7 +11,7 @@
  *
  * Bump VERSION when you want to drop old caches.
  */
-const VERSION = 'tt-v44';
+const VERSION = 'tt-v45';
 const SHELL_CACHE = `${VERSION}-shell`;
 const SDK_CACHE = `${VERSION}-sdk`;
 
@@ -20,6 +20,8 @@ const SHELL = [
   'index.html',
   'manifest.webmanifest',
   'assets/icons/icon.svg',
+  'assets/images/contour-lines.svg',
+  'assets/images/contour-index.svg',
   'css/splash.css',
   'css/tokens.css',
   'css/base.css',
