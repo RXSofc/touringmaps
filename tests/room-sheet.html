@@ -11,6 +11,7 @@ openRoomSheet({
   getState: () => ({ uid: 'u1', isOwner: owner, meta: { name: 'test', inviteCode: 'WWQSN5K6GZ', status: q.has('closed') ? 'closed' : 'open', capacity: 6 },
     members: { u1: { displayName: 'ariq3gp', role: owner ? 'owner' : 'member', motorcycle: 'Beat Deluxe 140cc', joinedAt: 1 }, u2: { displayName: 'Dimas', role: owner ? 'member' : 'owner', motorcycle: 'NMAX', joinedAt: 2 } },
     banned: owner ? { u9: { name: 'Budi' } } : {}, settings: { destinationPolicy: 'owner', discordInviteUrl: '' }, memberCount: 2,
-    keepAwake: true, voiceSupported: true, voiceMode: 'hold', guidanceSupported: true, guidance: true, regionSupported: true, regionAlerts: true }),
+    keepAwake: true, voiceSupported: true, voiceMode: 'hold', guidanceSupported: true, guidance: true, regionSupported: true, regionAlerts: true,
+    speech: { supported: true, enabled: q.has('speech'), voices: [{ name: 'id-id-x-ida-local', lang: 'id-ID' }, { name: 'id-id-x-idd-local', lang: 'id-ID' }], voiceName: '', rate: 1 } }),
   actions: new Proxy({}, { get: () => noop }), onClose: noop });
 </script></body></html>
