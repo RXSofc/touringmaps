@@ -225,7 +225,7 @@ export const SKIN_OPS = [
   ['hillshade', 'hillshade-shadow-color', '#6B6B6B', '#04040a'],
   ['hillshade', 'hillshade-highlight-color', '#FFFFFF', '#2b2f78'],
   ['hillshade', 'hillshade-accent-color', '#A8A8A8', N.violet],
-  ['building-flat', 'fill-color', '#D9D9D9', N.charcoal],
+  ['building-flat', 'fill-color', '#D9D9D9', '#5a0830'],
   ['building-flat', 'fill-outline-color', '#B5B5B5', N.purple],
   ['rail', 'line-color', '#8C8C8C', '#7a2bd6'],
   ['path', 'line-color', '#9C9C9C', N.teal],
@@ -239,7 +239,7 @@ export const SKIN_OPS = [
   ['building-outline', 'line-opacity', 0.9, 0.45],
   ['building-3d', 'fill-extrusion-color',
     ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 5], 0, '#FFFFFF', 12, '#F0F0F0', 30, '#D9D9D9', 80, '#BDBDBD', 200, '#9A9A9A'],
-    ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 5], 0, '#1d1d2c', 12, '#26204f', 30, '#33106b', 80, '#400082', 200, '#00a8b3']],
+    ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 5], 0, '#7a0640', 12, '#9c0a52', 30, '#c20a5e', 80, '#e0006e', 200, '#ff2d95']],
   ['poi-dot', 'circle-color', '#141616', N.green],
   ['poi-dot', 'circle-stroke-color', '#FFFFFF', N.void],
   ['accuracy-fill', 'fill-color', '#141616', N.cyan],
@@ -257,4 +257,4 @@ export const SKIN_OPS = [
 ];
 export const SKIN_GLOW_LAYERS = ['road-glow-secondary', 'road-glow-primary', 'route-glow'];
 export const LIGHT_DEFAULT = { anchor: 'viewport', color: '#FFFFFF', intensity: 0.55, position: [1.2, 205, 40] };
-export const LIGHT_NEON = { anchor: 'viewport', color: '#b8a6ff', intensity: 0.5, position: [1.2, 205, 40] };
+export const LIGHT_NEON = { anchor: 'viewport', color: '#ffe0f0', intensity: 0.62, position: [1.2, 205, 40] };

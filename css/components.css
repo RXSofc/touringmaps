@@ -576,3 +576,7 @@ button.chip--button:active { transform: translate(2px, 2px); }
 }
 @keyframes glitch { 0% { opacity: 0.9; transform: translateX(-8px); } 33% { opacity: 0.5; transform: translateX(10px); } 66% { opacity: 0.8; transform: translateX(-4px); } 100% { opacity: 0; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .map--glitch::after { animation: none; opacity: 0; } }
+
+/* Neon Night: the empty area above the horizon (outside the tiles) is the sky, not the page's light grey.
+   Deep blue-black at the top, midnight violet toward the horizon, so the far edge of the city fades into it. */
+.map.map--neon { background: linear-gradient(180deg, #0d0e15 0%, #120136 60%, #2a0a5e 100%); }

@@ -36,3 +36,7 @@ To change a colour, edit its neon value in `SKIN_OPS` (and the matching line abo
 ## Not verified here
 
 The build sandbox cannot load real map tiles, so the final look on real roads and buildings has to be checked on a phone.
+
+## Buildings (2026.10.30-3)
+Neon buildings are now hot crimson-to-magenta extrusions (darker when low, brighter when tall) under a warm pink light,
+so the skyline reads clearly against the cyan streets. The sky above the horizon is a dark violet gradient.
