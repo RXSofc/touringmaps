@@ -146,3 +146,14 @@ Data: region names from the geocoder chain (`reverse` with `addressdetails`, Nom
 ## Colour palette
 
 Five colours from the reference image plus one light tint of Equilibrium for cards, all defined once in `css/tokens.css`: Dark Void `#141616` (text, borders, shadows), Iridium `#3D3C38` (filled / active / selected / success), Artillery `#746D67` (secondary fills), Equilibrium `#A49F9D` (page background, muted fills, warnings), Falu Red `#7F1D1A` (danger, errors, cancel / back / close, off-route, toll warning) and Paper `#E6E3E1` (cards, panels, dock). Warnings differ by a dashed border, not by another colour. The base map stays neutral gray; the route keeps its muted red-to-white gradient.
+
+## Map options menu (2026.10.30-1)
+The map's button column is now two buttons: **GPS locate** (always standalone) and **Map menu**.
+The menu (`js/views/mapMenu.js`) holds labelled rows: Fit all riders, Go to destination, Route line (ON/OFF),
+3D map (ON/OFF), Neon Night skin (only while 3D is on), Spoken navigation (ON/OFF), Map legend.
+Action rows (fit, destination) close the menu; toggle rows keep it open. Tapping the map also closes it.
+
+## Room sheet scroll fix (2026.10.30-1)
+`roomSheet.js` used to rebuild its whole DOM on every touring render (each GPS fix), so any toggle jumped to the top.
+It now skips the redraw when the state is unchanged and restores scroll position and focus when it does redraw.
+Harness: `tests/room-sheet-scroll.html`. Preview of the menu: `tests/map-menu.html`.
