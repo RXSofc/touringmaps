@@ -396,7 +396,6 @@ export function touringView(roomId) {
     const items = [];
     if (!isConnected()) items.push(banner('offline', 'warning', 'wifi', [h('strong', {}, 'No connection. '), 'Positions on screen may be out of date. Riders will not see you until you reconnect.'], { dismissible: false }));
     if (state.meta.status === 'closed') items.push(banner('closed', 'warning', 'alert', [h('strong', {}, 'Room closed. '), 'Live sharing is paused.'], { dismissible: false }));
-    else if (!sessionActive()) items.push(banner('waiting', 'info', 'users', [h('strong', {}, 'Waiting for riders. '), `At least ${APP.limits.minMembersForSession} riders are needed before locations are shared. Send the invite code.`], { dismissible: false, action: { label: 'Invite', onClick: openRoom } }));
     if (state.geoError && state.geoError.code !== 'denied' && state.tracking) items.push(banner(`geo-${state.geoError.code}`, 'warning', 'alert', state.geoError.message));
     if (state.myFix && state.myFix.accuracy > APP.publish.maxAccuracyMeters && state.sharing && sessionActive()) {
       items.push(banner('accuracy', 'warning', 'alert', `GPS accuracy is poor (±${Math.round(state.myFix.accuracy)} m), so your position is not shared yet. Move to open sky.`, { dismissible: false }));

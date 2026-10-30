@@ -30,7 +30,7 @@ export function isFirebaseConfigured() {
 
 export const APP = Object.freeze({
   name: 'VEXLANE',
-  version: '2026.10.30-4',   // shown on the sign-in screen so you can tell which build is running
+  version: '2026.10.30-5',   // shown on the sign-in screen so you can tell which build is running
 
   limits: Object.freeze({
     defaultMembers: 6,          // room size when the owner does not choose
