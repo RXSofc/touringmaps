@@ -22,7 +22,7 @@ export function buildMapMenu(o) {
     dest: item('flag', 'Go to destination', o.onDest),
     route: item('route', 'Route line', o.onRoute, { toggle: true }),
     map3d: item('cube', '3D map', o.on3d, { toggle: true }),
-    skin: item('moon', 'Neon Night skin', o.onSkin, { toggle: true, sub: true, hidden: true }),
+    skin: item('moon', 'City Night', o.onSkin, { toggle: true, sub: true, hidden: true }),
     speech: item('volume', 'Spoken navigation', o.onSpeech, { toggle: true, hidden: !o.speechAvailable }),
     legend: item('info', 'Map legend', o.onLegend, { expanded: true })
   };
