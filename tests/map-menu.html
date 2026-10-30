@@ -1,0 +1,18 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="../css/tokens.css"><link rel="stylesheet" href="../css/base.css"><link rel="stylesheet" href="../css/components.css"><link rel="stylesheet" href="../css/layout.css"><link rel="stylesheet" href="../css/responsive.css">
+</head><body><div class="app" id="app"><div class="touring"><div class="map-wrap" id="wrap" style="background:#cfcfcf"></div></div></div>
+<script type="module">
+import { h, icon } from '/js/ui.js';
+import { buildMapMenu } from '/js/views/mapMenu.js';
+const q = new URLSearchParams(location.search);
+const s = { menuOpen: !q.has('closed'), routeVisible: true, map3d: q.has('3d'), skin: q.has('skin'), speech: q.has('speech'), legendOpen: false };
+const log = (x) => { (window.__log ||= []).push(x); };
+const sync = () => m.sync(s);
+const m = buildMapMenu({ speechAvailable: !q.has('nospeech'),
+  onToggleMenu: () => { s.menuOpen = !s.menuOpen; sync(); }, onFit: () => { s.menuOpen = false; log('fit'); sync(); }, onDest: () => { s.menuOpen = false; log('dest'); sync(); },
+  onRoute: () => { s.routeVisible = !s.routeVisible; sync(); }, on3d: () => { s.map3d = !s.map3d; sync(); }, onSkin: () => { s.skin = !s.skin; sync(); },
+  onSpeech: () => { s.speech = !s.speech; sync(); }, onLegend: () => { s.menuOpen = false; s.legendOpen = !s.legendOpen; sync(); } });
+const locate = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Center on my position' }, icon('locate'));
+document.getElementById('wrap').append(h('div', { class: 'map-controls' }, locate, m.button), m.menu);
+sync(); window.__s = s; window.__ready = true;
+</script></body></html>

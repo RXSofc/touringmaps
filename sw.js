@@ -11,7 +11,7 @@
  *
  * Bump VERSION when you want to drop old caches.
  */
-const VERSION = 'tt-v47';
+const VERSION = 'tt-v48';
 const SHELL_CACHE = `${VERSION}-shell`;
 const SDK_CACHE = `${VERSION}-sdk`;
 
@@ -76,7 +76,8 @@ const SHELL = [
   'js/views/profile.js',
   'js/views/touring.js',
   'js/views/destinationPanel.js',
-  'js/views/roomSheet.js'
+  'js/views/roomSheet.js',
+  'js/views/mapMenu.js'
 ];
 
 self.addEventListener('install', (event) => {

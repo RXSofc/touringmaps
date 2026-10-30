@@ -36,6 +36,7 @@ import { haversine } from '../geo.js';
 import { openDestinationPanel } from './destinationPanel.js';
 import { openRoomSheet } from './roomSheet.js';
 import { openGpsSheet } from './gpsSheet.js';
+import { buildMapMenu } from './mapMenu.js';
 import { openVoiceSheet } from './voiceSheet.js';
 import { navigate } from '../router.js';
 
@@ -75,6 +76,7 @@ export function touringView(roomId) {
     otherRoute: null,           // {uid, status:'loading'|'ok'|'error', route, error}
     routeVisible: true,
     legendOpen: false,
+    menuOpen: false,            // the map options menu
     ridersOpen: false,
     voiceMode: storage.get('tt.voiceMode') === 'toggle' ? 'toggle' : 'hold',   // hold the button, or tap to start/stop
     guidance: APP.guidance.enabled && storage.get('tt.guidance') !== '0',   // turn alerts (per device)
@@ -102,6 +104,7 @@ export function touringView(roomId) {
   let stopPresence = null;
   let routeManager = null;
   let guide = null;
+  let mapMenu = null;
   // Wrong way (off the route, or heading away from the destination): the warning repeats until it is fixed.
   const wrongWayWatch = new WrongWayWatch({ awayM: APP.guidance.awayM, turnBackM: APP.guidance.awayTurnBackM });
   let lastWarnAt = 0;
@@ -148,14 +151,20 @@ export function touringView(roomId) {
     els.mapEl = h('div', { class: 'map', id: 'map', role: 'application', 'aria-label': 'Live map of your riding group' });
 
     els.btnLocate = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Center on my position', title: 'Center on my position', onclick: onLocate }, icon('locate'));
-    els.btnFit = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Fit all riders', title: 'Fit all riders', onclick: () => { state.following = false; map.fitAll(); render(); } }, icon('fit'));
-    els.btnDest = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Go to destination', title: 'Go to destination', onclick: () => { state.following = false; if (!map.focusDestination()) toast('No destination set yet.', { type: 'info' }); } }, icon('flag'));
-    els.btnRoute = h('button', { class: 'btn btn--icon', type: 'button', 'aria-pressed': 'true', 'aria-label': 'Show or hide route', title: 'Show or hide route', onclick: () => { state.routeVisible = !state.routeVisible; map.setRouteVisible(state.routeVisible); render(); } }, icon('route'));
-    els.btn3d = h('button', { class: 'btn btn--icon btn--3d', type: 'button', 'aria-pressed': 'false', 'aria-label': '3D map', title: '3D map (tilted, follows your direction)', onclick: () => setMapMode(!state.map3d) }, h('span', { class: 'btn3d__label' }, '3D'));
-    els.btnSpeak = h('button', { class: 'btn btn--icon', type: 'button', hidden: !speech.supported || !APP.speech.enabled, 'aria-pressed': 'false', 'aria-label': 'Spoken navigation', title: 'Spoken navigation', onclick: onToggleSpeech }, icon('volume'));
-    els.btnSkin = h('button', { class: 'btn btn--icon btn--3d', type: 'button', hidden: true, 'aria-pressed': 'false', 'aria-label': 'Neon Night map skin', title: 'Neon Night map skin (3D map)', onclick: onToggleSkin }, h('span', { class: 'btn3d__label btn3d__label--sm' }, 'NEON'));
-    els.btnLegend = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Map legend', title: 'Map legend', 'aria-expanded': 'false', onclick: () => { state.legendOpen = !state.legendOpen; render(); } }, icon('layers'));
-    els.controls = h('div', { class: 'map-controls' }, els.btnLocate, els.btnFit, els.btnDest, els.btnRoute, els.btn3d, els.btnSkin, els.btnSpeak, els.btnLegend);
+    // Everything except the GPS button lives in one tidy menu (js/views/mapMenu.js), so the map is not covered in buttons.
+    mapMenu = buildMapMenu({
+      speechAvailable: speech.supported && APP.speech.enabled,
+      onToggleMenu: () => { state.menuOpen = !state.menuOpen; render(); },
+      onFit: () => { state.menuOpen = false; state.following = false; map.fitAll(); render(); },
+      onDest: () => { state.menuOpen = false; state.following = false; if (!map.focusDestination()) toast('No destination set yet.', { type: 'info' }); render(); },
+      onRoute: () => { state.routeVisible = !state.routeVisible; map.setRouteVisible(state.routeVisible); render(); },
+      on3d: () => setMapMode(!state.map3d),
+      onSkin: onToggleSkin,
+      onSpeech: onToggleSpeech,
+      onLegend: () => { state.menuOpen = false; state.legendOpen = !state.legendOpen; render(); }
+    });
+    els.controls = h('div', { class: 'map-controls' }, els.btnLocate, mapMenu.button);
+    els.menu = mapMenu.menu;
 
     els.legend = h('div', { class: 'legend panel', hidden: true },
       h('div', { class: 'legend__row' }, h('span', { class: 'dot dot--self' }), 'You'),
@@ -190,7 +199,7 @@ export function touringView(roomId) {
         els.back,
         h('div', { class: 'topbar__title' }, els.name, els.sub),
         h('div', { class: 'topbar__chips' }, els.connChip, els.gpsChip)),
-      h('div', { class: 'map-wrap' }, els.mapEl, els.alerts, els.controls, els.legend, els.riderPanel, els.riderCard, els.gate),
+      h('div', { class: 'map-wrap' }, els.mapEl, els.alerts, els.controls, els.menu, els.legend, els.riderPanel, els.riderCard, els.gate),
       els.dock);
   }
 
@@ -278,13 +287,7 @@ export function touringView(roomId) {
     // controls
     els.btnLocate.setAttribute('aria-pressed', String(state.following));
     map.setFollow(state.following && state.myFix ? uid : null);
-    els.btnRoute.setAttribute('aria-pressed', String(state.routeVisible));
-    els.btn3d.setAttribute('aria-pressed', String(state.map3d));
-    els.btnSpeak.setAttribute('aria-pressed', String(state.speech));
-    els.btnSpeak.replaceChildren(icon(state.speech ? 'volume' : 'volume-off'));
-    els.btnSkin.hidden = !state.map3d;
-    els.btnSkin.setAttribute('aria-pressed', String(state.skin));
-    els.btnLegend.setAttribute('aria-expanded', String(state.legendOpen));
+    mapMenu.sync(state);
     els.legend.hidden = !state.legendOpen;
 
     renderAlerts(riders);
@@ -920,6 +923,7 @@ export function touringView(roomId) {
     return {
       onRiderClick: (id) => selectRider(id === state.selectedUid ? null : id),
       onMapClick: (ll) => {
+        if (state.menuOpen) { state.menuOpen = false; render(); return; }
         if (destPanel && destPanel.handleMapClick(ll)) return;
         if (state.selectedUid) selectRider(null);
       },

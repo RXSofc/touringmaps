@@ -17,7 +17,23 @@ export function openRoomSheet({ getState, actions, onClose }) {
   const content = h('div', { class: 'room-sheet' });
   const sheet = openSheet({ title: 'Room', content, onClose });
 
+  /** Re-drawing replaces every node, which used to throw the sheet back to the top and drop focus. Keep both. */
   function render() {
+    const body = sheet.body;
+    const scrollTop = body.scrollTop;
+    const active = document.activeElement;
+    const focusKey = active && content.contains(active) ? focusPath(active) : null;
+    draw();
+    body.scrollTop = scrollTop;
+    if (focusKey !== null) {
+      const next = content.querySelectorAll('input, select, button, textarea')[focusKey];
+      if (next) next.focus({ preventScroll: true });
+    }
+    body.scrollTop = scrollTop;
+  }
+  const focusPath = (el) => [...content.querySelectorAll('input, select, button, textarea')].indexOf(el);
+
+  function draw() {
     const s = getState();
     const code = s.meta.inviteCode;
     const shareText = `Join my VEXLANE ride "${s.meta.name}" with code ${fmtCode(code || '')}`;
@@ -144,12 +160,17 @@ export function openRoomSheet({ getState, actions, onClose }) {
     mountInto(content, invite, riders, discord, owner, device);
   }
 
-  render();
+  let lastSig = '';
+  const signature = () => { try { return JSON.stringify(getState()); } catch { return String(Math.random()); } };
+  render(); lastSig = signature();
   return {
     close: sheet.close,
     update() {
-      // Don't clobber a field the person is typing in.
+      const sig = signature();
+      if (sig === lastSig) return;          // nothing changed: leave the sheet alone (no flicker, no jump)
+      // Don't clobber a field the person is typing in (the change is drawn on the next update).
       if (sheet.sheet.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && document.activeElement.type !== 'checkbox') return;
+      lastSig = sig;
       render();
     }
   };

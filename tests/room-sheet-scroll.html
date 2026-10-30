@@ -1,0 +1,22 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<script type="importmap">{"imports":{"/js/rooms.js":"/tests/stub-rooms.js"}}</script>
+<link rel="stylesheet" href="../css/tokens.css"><link rel="stylesheet" href="../css/base.css"><link rel="stylesheet" href="../css/components.css"><link rel="stylesheet" href="../css/layout.css"><link rel="stylesheet" href="../css/responsive.css">
+</head><body><div class="app" id="app"></div>
+<script type="module">
+import { openRoomSheet } from '/js/views/roomSheet.js';
+const st = { keepAwake: true, guidance: true, regionAlerts: true, speech: true, voiceMode: 'hold', renders: 0 };
+let api; const noop = () => {};
+window.__st = st;
+api = openRoomSheet({
+  getState: () => ({ uid: 'u1', isOwner: true, meta: { name: 'test', inviteCode: 'WWQSN5K6GZ', status: 'open', capacity: 6 },
+    members: { u1: { displayName: 'ariq3gp', role: 'owner', motorcycle: 'Beat', joinedAt: 1 }, u2: { displayName: 'Dimas', role: 'member', motorcycle: 'NMAX', joinedAt: 2 } },
+    banned: {}, settings: { destinationPolicy: 'owner', discordInviteUrl: '' }, memberCount: 2,
+    keepAwake: st.keepAwake, voiceSupported: true, voiceMode: st.voiceMode, guidanceSupported: true, guidance: st.guidance, regionSupported: true, regionAlerts: st.regionAlerts,
+    speech: { supported: true, enabled: st.speech, voices: [{ name: 'a', lang: 'id-ID' }], voiceName: '', rate: 1 } }),
+  actions: new Proxy({}, { get: (_, k) => (v) => {
+    if (k === 'setGuidance') st.guidance = v; else if (k === 'setRegionAlerts') st.regionAlerts = v; else if (k === 'setKeepAwake') st.keepAwake = v;
+    else if (k === 'setSpeech') st.speech = v; else if (k === 'setVoiceMode') st.voiceMode = v;
+    setTimeout(() => api.update(), 0);          // the touring view re-renders the sheet after every change
+  } }), onClose: noop });
+window.__api = api; window.__ready = true;
+</script></body></html>
