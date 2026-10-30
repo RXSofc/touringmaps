@@ -579,4 +579,4 @@ button.chip--button:active { transform: translate(2px, 2px); }
 
 /* Neon Night: the empty area above the horizon (outside the tiles) is the sky, not the page's light grey.
    Deep blue-black at the top, midnight violet toward the horizon, so the far edge of the city fades into it. */
-.map.map--neon { background: linear-gradient(180deg, #0d0e15 0%, #120136 60%, #2a0a5e 100%); }
+.map.map--3d.map--neon { background: linear-gradient(180deg, #0d0e15 0%, #120136 60%, #2a0a5e 100%); }
