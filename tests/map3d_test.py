@@ -118,7 +118,7 @@ async () => {
   // Neon Night skin: paint swaps only, halo layers shown, class on the container, no rebuild of sources
   ok(m.skin===false && !inst.cont.classList.contains('map--neon'),'skin off by default');
   const nSrc=Object.keys(inst.src).length;
-  m.setSkin(true); ok(inst.cont.classList.contains('map--neon') && inst.paint['background:background-color']==='#0d0e15' && inst.vis['route-glow']==='visible' && inst.vis['road-glow-primary']==='visible' && inst.light.color==='#b8a6ff','skin on: colours, halos, light');
+  m.setSkin(true); ok(inst.cont.classList.contains('map--neon') && inst.paint['background:background-color']==='#0d0e15' && inst.vis['route-glow']==='visible' && inst.vis['road-glow-primary']==='visible' && inst.light.color==='#ffe0f0','skin on: colours, halos, light');
   ok(String(JSON.stringify(inst.paint['route-line:line-gradient'])).includes('#ff007f') && inst.paint['road-motorway:line-color']==='#ff5e00' && inst.paint['road-primary:line-color']==='#fcee0a','skin: neon route, orange toll roads, yellow main roads');
   ok(Object.keys(inst.src).length===nSrc,'skin does not rebuild sources');
   m.setSkin(false); ok(!inst.cont.classList.contains('map--neon') && inst.paint['background:background-color']==='#F1F1F1' && inst.vis['route-glow']==='none' && inst.light.color==='#FFFFFF','skin off restores the default map');
