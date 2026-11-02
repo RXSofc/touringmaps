@@ -84,4 +84,28 @@ ok('only the owner can delete the room');
   assert.ok(!check(room, mem('data:image/gif;base64,' + b64(41000)), { uid: U }).ok, 'member copy: oversize GIF refused');
   assert.ok(!check(room, mem('data:image/png;base64,' + b64(20000)), { uid: U }).ok, 'member copy: big still refused'); }
 ok('avatar rules: stills <= 15000 chars, GIFs <= 40000 chars, nothing else');
+
+// ---- quick messages: one slot per rider, fixed kinds, members only, rate-limited by the rules
+{ let db = withProfile(withProfile(apply({}, createOps({ cap: 6 })), B), C);
+  db = apply(db, joinOps(B, 1));
+  const sig = (uid, v) => [{ path: ['rooms', ROOM, 'signals', uid], value: v }];
+  const t = Date.now();
+  assert.ok(check(db, sig(B, { k: 'stop', at: t }), { uid: B }).ok, 'a member can send a quick message');
+  assert.ok(check(db, sig(U, { k: 'fuel', at: t }), { uid: U }).ok, 'the owner too');
+  assert.ok(!check(db, sig(B, { k: 'insult', at: t }), { uid: B }).ok, 'only the fixed kinds are accepted');
+  assert.ok(!check(db, sig(B, { k: 'stop', at: t, text: 'hi' }), { uid: B }).ok, 'no extra fields (no free text)');
+  assert.ok(!check(db, sig(B, { k: 'stop' }), { uid: B }).ok, 'at is required');
+  assert.ok(!check(db, sig(B, { k: 'stop', at: t + 60000 }), { uid: B }).ok, 'a time in the future is refused');
+  assert.ok(!check(db, sig(B, { k: 'stop', at: 'now' }), { uid: B }).ok, 'at must be a number');
+  assert.ok(!check(db, sig(B, { k: 'stop', at: t }), { uid: C }).ok, 'cannot write to someone else\'s slot');
+  assert.ok(!check(db, sig(C, { k: 'stop', at: t }), { uid: C }).ok, 'a non-member cannot send');
+  const sent = apply(db, sig(B, { k: 'stop', at: t - 10000 }));
+  assert.ok(check(sent, sig(B, { k: 'go', at: t }), { uid: B }).ok, 'sending again after a pause is fine');
+  assert.ok(!check(sent, sig(B, { k: 'go', at: t - 9000 }), { uid: B }).ok, 'sending again within 2 seconds is refused (spam backstop)');
+  assert.ok(check(sent, sig(B, null), { uid: B }).ok, 'a rider can clear their own message');
+  const closed = apply(db, [{ path: ['rooms', ROOM, 'status'], value: 'closed' }]);
+  assert.ok(!check(closed, sig(B, { k: 'stop', at: t }), { uid: B }).ok, 'closed rooms accept no messages');
+  const fresh = createOps({ cap: 6 }); fresh[0].value.signals = { [U]: { k: 'stop', at: t } };
+  assert.ok(!check({}, fresh, { uid: U }).ok, 'a new room cannot be created with messages already inside'); }
+ok('quick message rules: members only, fixed kinds, no free text, own slot, 2 s gap, open rooms');
 console.log(`\n${n} passed`);

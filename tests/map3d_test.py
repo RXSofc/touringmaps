@@ -108,6 +108,12 @@ async () => {
   ok(m.focusDestination()===true && inst.fly.zoom===15,'focusDestination zoom converted, got '+(inst.fly&&inst.fly.zoom));
   m.previewDestination({latitude:-6.4,longitude:106.95},{pan:true,paddingBottom:200}); ok(inst.fly.padding.bottom===200,'preview padding');
   m.previewDestination(null); ok(m.previewMarker===null,'preview removed');
+  // fuel stops
+  { const A={id:'a',lat:-6.2,lng:106.8,name:'SPBU A'}, B={id:'b',lat:-6.21,lng:106.81,name:'SPBU B'}, C={id:'c',lat:-6.22,lng:106.82,name:'SPBU C'};
+    m.setFuelStops([A,B]); const mk=(id)=>m.fuelMarkers.get(id);
+    ok(m.fuelMarkers.size===2 && mk('a').ll.lat===-6.2 && mk('a').getElement().querySelector('.fuel-marker'),'fuel markers added');
+    const keepB=mk('b'); m.setFuelStops([B,C]); ok(m.fuelMarkers.size===2 && mk('b')===keepB && !m.fuelMarkers.has('a'),'fuel markers diffed (B kept, A removed)');
+    m.setFuelStops([]); ok(m.fuelMarkers.size===0,'fuel markers cleared'); }
   // user pan + click events
   inst.h.dragstart({originalEvent:{}}); inst.h.dragstart({}); ok(panned===1,'only user drags count');
   inst.h.click({lngLat:{lat:1,lng:2}}); ok(clicks.length===1&&clicks[0].lat===1,'map click');

@@ -5,14 +5,15 @@
 import { h, icon } from '/js/ui.js';
 import { buildMapMenu } from '/js/views/mapMenu.js';
 const q = new URLSearchParams(location.search);
-const s = { menuOpen: !q.has('closed'), routeVisible: true, map3d: q.has('3d'), skin: q.has('skin'), speech: q.has('speech'), legendOpen: false };
+const s = { menuOpen: !q.has('closed'), quickOpen: q.has('quick'), fuel: !q.has('nofuel'), fuelNext: q.has('nofuel') ? '' : '12 km', signalWait: false, routeVisible: true, map3d: q.has('3d'), skin: q.has('skin'), speech: q.has('speech'), legendOpen: false };
 const log = (x) => { (window.__log ||= []).push(x); };
 const sync = () => m.sync(s);
 const m = buildMapMenu({ speechAvailable: !q.has('nospeech'),
   onToggleMenu: () => { s.menuOpen = !s.menuOpen; sync(); }, onFit: () => { s.menuOpen = false; log('fit'); sync(); }, onDest: () => { s.menuOpen = false; log('dest'); sync(); },
   onRoute: () => { s.routeVisible = !s.routeVisible; sync(); }, on3d: () => { s.map3d = !s.map3d; sync(); }, onSkin: () => { s.skin = !s.skin; sync(); },
+  onFuel: () => { s.fuel = !s.fuel; sync(); }, onQuick: () => { s.quickOpen = true; sync(); }, onQuickBack: () => { s.quickOpen = false; sync(); }, onSignal: (id) => { log('sig:' + id); s.menuOpen = false; s.quickOpen = false; sync(); },
   onSpeech: () => { s.speech = !s.speech; sync(); }, onLegend: () => { s.menuOpen = false; s.legendOpen = !s.legendOpen; sync(); } });
 const locate = h('button', { class: 'btn btn--icon', type: 'button', 'aria-label': 'Center on my position' }, icon('locate'));
-document.getElementById('wrap').append(h('div', { class: 'map-controls' }, locate, m.button), m.menu);
+document.getElementById('wrap').append(h('div', { class: 'map-controls' }, locate, m.button), m.menu, m.quick);
 sync(); window.__s = s; window.__ready = true;
 </script></body></html>

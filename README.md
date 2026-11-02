@@ -1,5 +1,5 @@
 <h1 align="center">VEXLANE</h1>
-<p align="center"><b>004 - EVTEAM</b></p>
+<p align="center"><b>One road. One crew.</b></p>
 
 <p align="center"><img src="docs/media/splash.gif" width="216" alt="The VEXLANE launch splash: three routes draw themselves, merge into one lane, and the wordmark slams in"></p>
 
@@ -35,7 +35,7 @@ This clip is rendered headlessly from the app's own stylesheet with a scripted r
 
 **The convoy.** A room is made with a random ten-symbol invite code. The owner picks how many riders it holds, from 2 to 30 (default 6), and the database rules enforce that number, not just the screen. Riders join with the code, see a preview first, and can be removed or banned. Profile photos can be animated GIFs: they are shrunk to a small square in the browser (no library) and keep moving on the map and in lists. Positions move through Firebase every 1.5 s or 5 m while riding, 30 s while standing still, and a rider's phone says when it has gone quiet.
 
-**The map.** Flat by default (Leaflet and OpenStreetMap). Tap 3D for a tilted MapLibre map with extruded buildings, house numbers and a camera that turns with your heading; hills show as a soft relief, and a NEON button switches a night-city map skin on and off, and a speaker button turns on spoken turn-by-turn directions with the phone's own text-to-speech (`docs/SPOKEN-NAV.md`). Your own dot is gently pulled onto your route line, and stays still when you stand still. The route is a muted red that fades to soft white toward the destination.
+**The map.** Flat by default (Leaflet and OpenStreetMap). Tap 3D for a tilted MapLibre map with extruded buildings, house numbers and a camera that turns with your heading; hills show as a soft relief, and a NEON button switches a night-city map skin on and off, and a speaker button turns on spoken turn-by-turn directions with the phone's own text-to-speech (`docs/SPOKEN-NAV.md`). Fuel stops (SPBU) along the route show up as small pump badges with a heads-up before each one, and a one-tap quick message ("Berhenti dulu", "Isi bensin", ...) reaches every rider (`docs/LOGISTICS.md`). Your own dot is gently pulled onto your route line, and stays still when you stand still. The route is a muted red that fades to soft white toward the destination.
 
 **Getting there.** Set the destination by searching a place, typing coordinates or tapping the map. Each rider's route comes from OSRM starting at that rider's own position. Leave the route and the reroute starts within about 3.5 seconds, retrying with a growing delay if the signal is bad. While you keep riding the wrong way (off the route, or away from the destination when there is no route to judge by) the red card stays up and the phone buzzes again every four seconds; stop riding and it goes quiet. Turn alerts (far, near, now) come as a popup plus a vibration.
 
@@ -65,6 +65,22 @@ This depends on what the routing data knows. It is a strong guard, not a guarant
 
 Five colors, one light tint of Equilibrium for cards, defined once in `css/tokens.css`. Dark Void for text and borders, Iridium for anything filled or selected, Artillery for secondary fills, Equilibrium for the page and for warnings, Falu Red only for danger, errors, off-route, tolls and the cancel / back / close buttons. Neo-Brutalist rules apply: hard offset shadows, thick borders, no blur. Warnings differ by a dashed border, not by another color.
 
+## Run your own
+
+About fifteen minutes, no command line needed beyond a static server.
+
+1. Create a Firebase project. Turn on **Authentication, Email/Password**.
+2. Create a **Realtime Database**, open Rules, paste `firebase/database.rules.json`, and **Publish**. Do this again after any update: the room size limit lives in these rules.
+3. Add a Web app, copy its config into `firebaseConfig` in `js/config.js`, and add `YOUR-USERNAME.github.io` to Authorized domains.
+4. Push the folder to a repository and turn on GitHub Pages (branch, root). All paths are relative and routes use `#/hash`, so any repository name works.
+5. Test locally with `python3 -m http.server 8080` and open `http://localhost:8080`. Localhost counts as a secure context, so GPS works.
+
+Wrapping it in an Android WebView (AppMint or similar): load the **https** Pages URL, allow location and microphone for the wrapper, let external links open in the system browser, and keep the screen on while riding (Room menu, Keep screen on). A WebView is paused when the screen locks; reliable background GPS would need a native foreground service.
+
+Voice signalling can use Supabase Realtime Broadcast instead of Firebase: put your project URL in `APP.supabase.url`. Between two phones on mobile data you will probably also need a TURN relay in `APP.voice.iceServers`. Voice diagnostics in the Room menu tells you which of the two is missing.
+
+Everything else (setup details, providers, voice, data lifecycle, manual test checklist) is in [docs/REFERENCE.md](docs/REFERENCE.md), [docs/MAP-PROVIDERS.md](docs/MAP-PROVIDERS.md), [docs/GPS.md](docs/GPS.md) and [docs/GUIDANCE.md](docs/GUIDANCE.md), [docs/LOGISTICS.md](docs/LOGISTICS.md).
+
 ## Said out loud
 
 - A route is an estimate. The public OSRM demo uses a car profile, no live traffic, no closures. Turn-by-turn is a helper, not a replacement for looking at the road.
@@ -73,3 +89,44 @@ Five colors, one light tint of Equilibrium for cards, defined once in `css/token
 - No push notifications and no background tracking in a browser or WebView.
 - The database rules tests in `firebase/tests` need the Firebase emulator. `node tests/rules-eval-test.mjs` runs the same create and join scenarios against a small local evaluator of the rules file, which is a good smoke test but not Firebase itself; confirm in the Rules Playground. If you ever see "permission denied" when creating a room, the rules in the console are older than the app: publish `firebase/database.rules.json` again.
 - Most of this was verified in simulation: a fake map library, scripted GPS rides, mocked networks. Real roads, real tiles and real signal are the final judge, so ride a short loop before a long trip.
+
+## Under the hood
+
+```
+index.html, sw.js, manifest.webmanifest     entry, offline shell, install metadata
+css/        tokens (palette), base, components, layout, splash
+js/         router, rooms, presence, location, gps-filter, motion, map, map3d, map-style,
+            routing, guidance, regionwatch, region, weather, destinations, voice, signaling
+js/views/   setup, auth, dashboard, profile, touring, destinationPanel, roomSheet
+firebase/   database.rules.json and its tests
+docs/       reference notes, and media/ with the GIFs and the script that renders them
+tests/      simulations that need no network
+```
+
+Run the simulations from the repository root:
+
+```
+node tests/guidance-sim.mjs      turn alerts and off-route detection
+node tests/routing-toll.mjs      the toll layers and the reroute retries
+node tests/regionwatch.mjs       region look-ahead and weather text
+node tests/route-snap.mjs        route colors and the dot snapped to the line
+node tests/follow-bearing.mjs    which way the 3D follow camera faces
+node tests/wrongway.mjs, skin-test.mjs, voice-test.mjs          heading away from the destination (no route to judge by)
+node tests/wrong-way-sim.mjs     the repeating wrong-way warning on simulated rides
+node tests/gif-test.mjs          animated GIF avatars: decode, shrink, re-encode (tests/fixtures)
+node tests/motion-deadband.mjs   the avatar standing still
+python3 tests/map3d_test.py      the 3D map against a fake MapLibre (needs Playwright)
+```
+
+Pages that mount the real views against stand-ins for Firebase (serve the folder, open in a browser):
+
+```
+tests/dashboard-real.html        the dashboard with fake sign-in and rooms
+tests/rooms-capacity.html        room size survives create, subscribe and new invite code
+tests/room-sheet.html            the Room sheet
+tests/avatar-gif.html            uploading a GIF through the real profile code (animation keeps playing)
+```
+
+To regenerate the GIFs: start `python3 -m http.server 8099` in this folder, then `python3 docs/media/src/render.py` (needs Playwright and ffmpeg).
+
+The build label is shown at the bottom of the sign-in screens, so you can always tell which version is running on a phone.

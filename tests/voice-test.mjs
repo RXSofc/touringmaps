@@ -117,4 +117,13 @@ check('speeding: warned once per cooldown', fired === 1, fired);
 fired = 0; const sw2 = new SpeedWatch({ limitKmh: 90 }); for (let s = 0; s < 20; s++) if (sw2.update(24, s * 1000)) fired++; check('86 km/h is fine', fired === 0);
 fired = 0; const sw3 = new SpeedWatch({ limitKmh: 90 }); for (let s = 0; s < 3; s++) if (sw3.update(30, s * 1000)) fired++; check('a 3 s burst is ignored', fired === 0);
 
+// fuel + quick message lines
+{ const f1 = lines.fuel('SPBU Pertamina', 2000, 'left'), f2 = lines.fuel('SPBU', 400, 'right');
+  check('fuel line names the station, distance and side', /SPBU Pertamina/.test(f1) && /dua kilo/.test(f1) && /kiri/.test(f1), f1);
+  check('fuel line, short distance, right side', /setengah kilo/.test(f2) && /kanan/.test(f2), f2);
+  check('fuel line has no double spaces or " ."', !/\s{2,}|\s\./.test(f1 + f2));
+  for (const k of ['stop', 'wait', 'behind', 'rest', 'fuel', 'go', 'careful', 'trouble']) check('signal line ' + k + ' names the rider', /Budi/.test(lines.signal('Budi', k, 'x')));
+  check('unknown signal falls back to the popup text', /Budi minta apa/.test(lines.signal('Budi', 'zzz', 'minta apa')));
+  check('signal without a name still reads', /Temen lu/.test(lines.signal('', 'stop'))); }
+
 console.log(`${ok} passed${fail ? `, ${fail} FAILED` : ''}`); process.exit(fail ? 1 : 0);
