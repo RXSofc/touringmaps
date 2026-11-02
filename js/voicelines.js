@@ -140,6 +140,28 @@ export const lines = {
   straight: () => pick('straight', ['Lurus terus aja babi, ikutin jalan utama, gak usah belok-belok ntar nyungsep.',
     'Lurus terus woi, belum ada belokan. Jangan sok nyari jalan tikus, ntar nyasar.']),
   straightAgain: (m) => `Masih lurus terus, belokan berikutnya ${kmWords(m)} lagi. Jangan ngantuk woi, fokus!`,
+  /** A fuel station is coming up. `place` = spoken name ("SPBU Pertamina"), `side` = 'left' | 'right'. */
+  fuel: (place, m, side) => {
+    const where = side === 'left' ? 'di sebelah kiri' : side === 'right' ? 'di sebelah kanan' : '';
+    const far = m >= 750 ? `${kmWords(m)} lagi` : `${distanceWords(m).toLowerCase()} lagi`;
+    return pick('fuel', [`${place} ${far} ${where}. Isi bensin dulu woi, jangan sampe nuntun motor!`,
+      `Ada ${place} ${far} ${where}. Lu mau kehabisan bensin di tengah jalan? Isi dulu goblok!`]).replace(/\s+\./, '.').replace(/\s{2,}/g, ' ');
+  },
+  /** A rider pressed a quick message. `what` = "minta berhenti dulu" etc. */
+  signal: (name, kind, what) => {
+    const who = speakName(name) || 'Temen lu';
+    switch (kind) {
+      case 'stop': return `Woi, ${who} minta berhenti dulu!`;
+      case 'wait': return `${who} minta ditunggu, pelan-pelan dikit woi!`;
+      case 'behind': return `${who} ketinggalan di belakang, tungguin napa!`;
+      case 'rest': return `${who} ngajak istirahat. Cari tempat berhenti.`;
+      case 'fuel': return `${who} mau isi bensin. Cari SPBU!`;
+      case 'go': return `${who} ngajak lanjut jalan, gas!`;
+      case 'careful': return `${who} bilang hati-hati di depan!`;
+      case 'trouble': return `Woi, ${who} ada masalah sama motornya! Berhenti dulu!`;
+      default: return `${who} ${what || 'ngirim pesan'}.`;
+    }
+  },
   rbExit: () => 'Nah ini dia belokannya, keluar bunderan sekarang woi!',
   underpass: () => 'Depan turun ke underpass, jangan malah ambil jalur atas tolol!',
   offRoute: () => 'Bisa baca map gak sih sia? Nyasar kan jadinya bangsat, bentar aing itung ulang!',

@@ -616,3 +616,28 @@ body[data-bg="contour"][data-route="profile"] .page__title { padding: 0.1rem 0.6
 .mi--sub::before { content: ''; position: absolute; left: calc(var(--space-3) + 12px); top: 0; height: 50%; width: 10px; border-left: 3px solid var(--color-border); border-bottom: 3px solid var(--color-border); }
 .map-menu [hidden] { display: none !important; }
 .map-controls .btn[aria-expanded="true"] { background: var(--color-primary); color: var(--color-on-primary); }
+
+/* Quick message panel: takes the map menu's place; eight big one-tap buttons */
+.map-menu--quick { width: min(300px, calc(100vw - 96px)); }
+.map-menu__head--row { display: flex; align-items: center; gap: var(--space-2); padding: 0; }
+.map-menu__head--row > span { padding: 0.35rem var(--space-2) 0.35rem 0; }
+.qm-back { display: grid; place-items: center; width: 40px; height: 34px; background: transparent; color: inherit; border: 0; border-right: 2px solid var(--color-on-primary); }
+.qm-back .icon { width: 1.1rem; height: 1.1rem; }
+.qm-back:focus-visible { outline: 3px solid var(--color-accent); outline-offset: -3px; }
+.qm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.qm { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: var(--space-2); min-height: 54px; padding: 0.4rem var(--space-2); text-align: left; background: var(--color-surface); border: 0; border-top: 2px solid var(--color-border); border-right: 2px solid var(--color-border); font: 700 0.84rem var(--font-body); color: var(--color-text); line-height: 1.15; }
+.qm:nth-child(2n) { border-right: 0; }
+.qm__icon { display: grid; place-items: center; width: 30px; height: 30px; border: 2px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg); }
+.qm__icon .icon { width: 1.05rem; height: 1.05rem; }
+.qm:active:not(:disabled) { background: var(--color-primary); color: var(--color-on-primary); }
+.qm:active:not(:disabled) .qm__icon { background: var(--color-surface); color: var(--color-text); }
+.qm:disabled { opacity: 0.45; }
+.qm:focus-visible { outline: 3px solid var(--color-accent); outline-offset: -3px; }
+.qm-note { margin: 0; padding: 0.3rem var(--space-3); border-top: 2px solid var(--color-border); font-size: 0.72rem; color: var(--color-text-soft); background: var(--color-bg); }
+.map-menu--quick[hidden] { display: none !important; }
+
+/* Fuel stop badge on the map */
+.fuel-icon { background: transparent; border: 0; }
+.fuel-marker { display: grid; place-items: center; width: 30px; height: 30px; background: var(--color-surface); color: var(--color-text); border: 3px solid var(--color-border); border-radius: var(--radius-sm); box-shadow: 2px 2px 0 var(--color-border); }
+.fuel-marker .icon { width: 1.05rem; height: 1.05rem; }
+.map--neon .fuel-marker { background: #0d0e15; color: #39ff14; border-color: #39ff14; box-shadow: 2px 2px 0 #ff007f; }

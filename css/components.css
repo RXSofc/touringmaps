@@ -580,3 +580,7 @@ button.chip--button:active { transform: translate(2px, 2px); }
 /* Neon Night: the empty area above the horizon (outside the tiles) is the sky, not the page's light grey.
    Deep blue-black at the top, midnight violet toward the horizon, so the far edge of the city fades into it. */
 .map.map--3d.map--neon { background: linear-gradient(180deg, #0d0e15 0%, #120136 60%, #2a0a5e 100%); }
+
+/* Fuel stop heads-up and incoming quick messages: dark side bar, so red stays for danger only */
+.toast--fuel, .toast--msg { background: var(--color-surface); padding: 0.45rem 0.8rem; border-left: 10px solid var(--color-primary); }
+.toast--msg { border-left-color: var(--color-text); }

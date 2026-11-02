@@ -3,7 +3,7 @@
  */
 import {
   h, icon, toast, withBusy, mountInto, clear, avatarImg, avatarFor, openSheet, confirmDialog,
-  formatDistance, formatDuration, formatAge, formatLatLng, formatSpeedKmh, formatClock
+  formatDistance, formatDuration, formatAge, formatLatLng, formatSpeedKmh, formatClock, cleanText
 } from '../ui.js';
 import { APP } from '../config.js';
 import { MAP_CONFIG, usableProviders } from '../map-config.js';
@@ -37,6 +37,8 @@ import { openDestinationPanel } from './destinationPanel.js';
 import { openRoomSheet } from './roomSheet.js';
 import { openGpsSheet } from './gpsSheet.js';
 import { buildMapMenu } from './mapMenu.js';
+import { FuelWatch, fetchStations, spokenName } from '../fuel.js';
+import { sendSignal, SignalInbox, signalById, SIGNAL_GAP_MS } from '../signals.js';
 import { openVoiceSheet } from './voiceSheet.js';
 import { navigate } from '../router.js';
 
@@ -77,6 +79,10 @@ export function touringView(roomId) {
     routeVisible: true,
     legendOpen: false,
     menuOpen: false,            // the map options menu
+    quickOpen: false,           // the quick message panel (replaces the menu while open)
+    signalWait: false,          // a quick message was just sent: buttons rest for a moment
+    fuel: storage.get('tt.fuel') !== '0',   // fuel stops (SPBU) along the route: markers + a heads-up before each one
+    fuelNext: '',               // distance to the next station, shown on the menu row
     ridersOpen: false,
     voiceMode: storage.get('tt.voiceMode') === 'toggle' ? 'toggle' : 'hold',   // hold the button, or tap to start/stop
     guidance: APP.guidance.enabled && storage.get('tt.guidance') !== '0',   // turn alerts (per device)
@@ -105,6 +111,10 @@ export function touringView(roomId) {
   let routeManager = null;
   let guide = null;
   let mapMenu = null;
+  let fuelWatch = null;
+  let lastFuelRoute = null;
+  let fuelSig = '';
+  const inbox = new SignalInbox(uid, (s) => onIncomingSignal(s));
   // Wrong way (off the route, or heading away from the destination): the warning repeats until it is fixed.
   const wrongWayWatch = new WrongWayWatch({ awayM: APP.guidance.awayM, turnBackM: APP.guidance.awayTurnBackM });
   let lastWarnAt = 0;
@@ -117,6 +127,8 @@ export function touringView(roomId) {
   const voiceNav = new VoiceNav({ ...APP.guidance, ...APP.speech }, sayIf);
   const crawlWatch = new CrawlWatch({ needMs: APP.speech.crawlNeedMs });
   const speedWatch = new SpeedWatch({ limitKmh: APP.speech.speedWarnKmh, holdMs: APP.speech.speedHoldMs, cooldownMs: APP.speech.speedCooldownMs });
+  let fuelDestKey = '';
+  const destKeyNow = () => (state.destination ? `${state.destination.latitude},${state.destination.longitude}` : '');
   let awaitingNewRoute = false;      // true from "you left the route" until the new route arrives
   let voiceStartedFor = null;        // destination the trip-start line was already said for
   let lastMovedAt = 0;
@@ -154,7 +166,11 @@ export function touringView(roomId) {
     // Everything except the GPS button lives in one tidy menu (js/views/mapMenu.js), so the map is not covered in buttons.
     mapMenu = buildMapMenu({
       speechAvailable: speech.supported && APP.speech.enabled,
-      onToggleMenu: () => { state.menuOpen = !state.menuOpen; render(); },
+      onToggleMenu: () => { state.menuOpen = !state.menuOpen; state.quickOpen = false; render(); },
+      onFuel: onToggleFuel,
+      onQuick: () => { state.quickOpen = true; render(); },
+      onQuickBack: () => { state.quickOpen = false; render(); },
+      onSignal: onSendSignal,
       onFit: () => { state.menuOpen = false; state.following = false; map.fitAll(); render(); },
       onDest: () => { state.menuOpen = false; state.following = false; if (!map.focusDestination()) toast('No destination set yet.', { type: 'info' }); render(); },
       onRoute: () => { state.routeVisible = !state.routeVisible; map.setRouteVisible(state.routeVisible); render(); },
@@ -165,6 +181,7 @@ export function touringView(roomId) {
     });
     els.controls = h('div', { class: 'map-controls' }, els.btnLocate, mapMenu.button);
     els.menu = mapMenu.menu;
+    els.quick = mapMenu.quick;
 
     els.legend = h('div', { class: 'legend panel', hidden: true },
       h('div', { class: 'legend__row' }, h('span', { class: 'dot dot--self' }), 'You'),
@@ -199,7 +216,7 @@ export function touringView(roomId) {
         els.back,
         h('div', { class: 'topbar__title' }, els.name, els.sub),
         h('div', { class: 'topbar__chips' }, els.connChip, els.gpsChip)),
-      h('div', { class: 'map-wrap' }, els.mapEl, els.alerts, els.controls, els.menu, els.legend, els.riderPanel, els.riderCard, els.gate),
+      h('div', { class: 'map-wrap' }, els.mapEl, els.alerts, els.controls, els.menu, els.quick, els.legend, els.riderPanel, els.riderCard, els.gate),
       els.dock);
   }
 
@@ -846,6 +863,7 @@ export function touringView(roomId) {
     if (state.backgroundGapMs) state.backgroundGapMs = null;
     if (state.guidance) guide?.update(fix);
     updateSpeech(fix);
+    updateFuel(fix);
     updateWrongWay(fix);
     if (state.regionAlerts) regionWatch?.update(fix, state.route?.route?.coords || null);
     routeManager.updateOrigin(fix);
@@ -921,8 +939,9 @@ export function touringView(roomId) {
   function mapHandlers(mode) {
     return {
       onRiderClick: (id) => selectRider(id === state.selectedUid ? null : id),
+      onFuelClick,
       onMapClick: (ll) => {
-        if (state.menuOpen) { state.menuOpen = false; render(); return; }
+        if (state.menuOpen) { state.menuOpen = false; state.quickOpen = false; render(); return; }
         if (destPanel && destPanel.handleMapClick(ll)) return;
         if (state.selectedUid) selectRider(null);
       },
@@ -952,6 +971,91 @@ export function touringView(roomId) {
     map.setRouteDim(!!state.route?.rerouting || !!state.route?.route?.blockedClasses?.length);
     map.setTerrain?.(state.terrain);
     map.setSkin?.(state.skin);
+    fuelSig = ''; refreshFuelMarkers();
+  }
+
+  /* ------------------------------------------------- fuel stops (SPBU) */
+  function fuelAlong() { return guide?.active && guide.hasFix && !guide.offRoute ? guide.alongM : null; }
+
+  /** Feeds the rider's progress to the fuel watcher and keeps the markers and the menu row current. */
+  function updateFuel(fix) {
+    void fix;
+    if (!fuelWatch || !state.fuel) return;
+    const along = fuelAlong();
+    if (along === null) return;
+    fuelWatch.update(along);
+    refreshFuelMarkers();
+  }
+
+  function refreshFuelMarkers() {
+    const along = fuelAlong() ?? 0;
+    const shown = state.fuel && fuelWatch ? fuelWatch.ahead(along, APP.fuel.showAheadM).slice(0, APP.fuel.maxMarkers) : [];
+    const next = shown[0];
+    state.fuelNext = next ? formatDistance(roundTo10(next.along - along)) : '';
+    const sig = shown.map((f) => f.id).join('|');
+    if (sig === fuelSig) return;
+    fuelSig = sig;
+    map?.setFuelStops?.(shown);
+  }
+
+  function describeFuel(st) {
+    const along = fuelAlong();
+    const d = along === null ? null : Math.max(0, st.along - along);
+    const side = st.side === 'left' ? 'sisi kiri' : 'sisi kanan';
+    return { name: st.name, line: `${d === null ? '' : `${formatDistance(roundTo10(d))} lagi · `}${side} jalan` };
+  }
+
+  function onFuelAnnounce(st, d) {
+    if (destroyed || !state.fuel) return;
+    const { name, line } = describeFuel(st);
+    toast(`${name}\n${line}`, { type: 'fuel', timeout: 7000 });
+    vibrate('far');
+    if (state.speech) speech.say(voiceLines.fuel(spokenName(st), roundTo10(d), st.side), { key: 'fuel', gapMs: 8000 });
+  }
+
+  function onFuelClick(st) {
+    const { name, line } = describeFuel(st);
+    toast(`${name}\n${line}`, { type: 'fuel', timeout: 5000 });
+  }
+
+  function onToggleFuel() {
+    state.fuel = !state.fuel;
+    storage.set('tt.fuel', state.fuel ? '1' : '0');
+    fuelWatch?.setEnabled(state.fuel && APP.fuel.enabled);
+    fuelSig = '';
+    refreshFuelMarkers();
+    if (state.fuel && !state.destination) toast('Fuel stops show up once a destination and route are set.', { type: 'info', timeout: 3500 });
+    render();
+  }
+
+  /* ------------------------------------------------- quick messages */
+  async function onSendSignal(kind) {
+    const sig = signalById(kind);
+    if (!sig || state.signalWait) return;
+    if (state.meta.status === 'closed') { toast('This room is closed.', { type: 'warning' }); return; }
+    state.signalWait = true; state.menuOpen = false; state.quickOpen = false; render();
+    setTimeout(() => { state.signalWait = false; if (!destroyed) render(); }, SIGNAL_GAP_MS);
+    try {
+      await sendSignal(roomId, uid, kind);
+      toast(`Terkirim\n${sig.label}`, { type: 'success', timeout: 2200 });
+      try { navigator.vibrate?.(60); } catch { /* ignore */ }
+    } catch (err) {
+      state.signalWait = false;
+      const denied = /permission/i.test(`${err?.code} ${err?.message}`);
+      toast(denied ? 'Quick messages are not enabled yet. The room owner must publish the new Firebase rules.' : 'Message not sent. Check your connection.', { type: 'error', timeout: 5000 });
+      render();
+    }
+  }
+
+  function onIncomingSignal({ uid: from, kind }) {
+    if (destroyed) return;
+    const sig = signalById(kind);
+    const member = state.members[from];
+    if (!sig || !member) return;
+    const name = cleanText(member.displayName, 24) || 'Rider';
+    toast(`${name}\n${sig.label}`, { type: 'msg', timeout: kind === 'trouble' || kind === 'stop' ? 9000 : 6000 });
+    try { if (APP.guidance.vibrate) navigator.vibrate?.(kind === 'trouble' ? [300, 100, 300, 100, 300] : [200, 90, 200]); } catch { /* ignore */ }
+    if (state.speech) speech.say(voiceLines.signal(name, kind, sig.popup), { urgent: kind === 'trouble' || kind === 'stop', key: `sig-${from}`, gapMs: 2500 });
   }
 
   function onToggleSpeech() {
@@ -1024,6 +1128,7 @@ export function touringView(roomId) {
           state.route = rs;
           if (rs.status === 'ok' && rs.route) {
             if (rs.route !== lastDrawnRoute) { lastDrawnRoute = rs.route; map.setRoute(rs.route.coords); }
+            if (rs.route !== lastFuelRoute) { const sameTrip = !!lastFuelRoute && fuelDestKey === destKeyNow(); lastFuelRoute = rs.route; fuelDestKey = destKeyNow(); fuelWatch?.setRoute(rs.route, { keep: sameTrip }); }
             if (rs.route !== lastGuidedRoute) {
               lastGuidedRoute = rs.route; guide?.setRoute(rs.route);
               const destKey = state.destination ? `${state.destination.latitude},${state.destination.longitude}` : '';
@@ -1032,7 +1137,7 @@ export function touringView(roomId) {
               crawlWatch.reset(); voiceNav.setRoute(rs.route, { mode });
             }
           } else if (!rs.route && lastGuidedRoute) { lastGuidedRoute = null; guide?.setRoute(null); voiceNav.setRoute(null); }
-          else if (!state.destination) { lastDrawnRoute = null; map.setRoute(null); }
+          else if (!state.destination) { lastDrawnRoute = null; map.setRoute(null); if (lastFuelRoute) { lastFuelRoute = null; fuelWatch?.setRoute(null); } }
           // faded while re-routing, or when the route touches a toll road (not usable for a motorcycle)
           const tolled = !!rs.route?.blockedClasses?.length;
           map.setRouteDim(!!rs.rerouting || tolled);
@@ -1048,6 +1153,9 @@ export function touringView(roomId) {
         onAlert: ({ stage, maneuver }) => vibrate(maneuver.step.type === 'arrive' ? 'arrive' : stage),
         onOffRoute: () => { lastWarnAt = Date.now(); vibrate('offroute'); awaitingNewRoute = true; sayIf(voiceLines.offRoute(), { urgent: true, key: 'off', gapMs: 8000 }); routeManager.reroute(APP.guidance.rerouteMinIntervalMs, APP.guidance.rerouteRetries); }
       });
+      fuelWatch = new FuelWatch(APP.fuel, { fetcher: fetchStations, onChange: () => { refreshFuelMarkers(); render(); }, onAnnounce: onFuelAnnounce });
+      fuelWatch.setEnabled(state.fuel && APP.fuel.enabled);
+      cleanups.push(() => { fuelWatch?.setEnabled(false); fuelWatch = null; });
       cleanups.push(() => { guide = null; speech.setEnabled(false); try { navigator.vibrate?.(0); } catch { /* ignore */ } });
 
       regionWatch = new RegionWatch({
@@ -1141,6 +1249,7 @@ export function touringView(roomId) {
         onPresence: (p) => { state.presence = p; if (voice?.transmitting) voice.syncPeers(); render(); },
         onSettings: (s) => { state.settings = s; render(); },
         onBanned: (b) => { state.banned = b; render(); },
+        onSignals: (m) => inbox.push(m),
         onDestination: (dest) => {
           const changed = JSON.stringify([dest?.latitude, dest?.longitude, dest?.updatedAt]) !== JSON.stringify([state.destination?.latitude, state.destination?.longitude, state.destination?.updatedAt]);
           state.destination = dest;

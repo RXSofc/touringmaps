@@ -406,7 +406,7 @@ export async function canAccessRoom(roomId, uid) {
  * Subscribes to everything the touring screen needs. Returns an unsubscribe fn.
  *
  * handlers: onMeta(meta), onMembers(map), onLocations(map), onPresence(map),
- *           onDestination(obj|null), onSettings(obj), onBanned(map),
+ *           onDestination(obj|null), onSettings(obj), onBanned(map), onSignals(map),
  *           onReady(), onAccessLost('removed'|'deleted'), onError(err)
  */
 export function subscribeRoom(roomId, uid, handlers) {
@@ -456,6 +456,7 @@ export function subscribeRoom(roomId, uid, handlers) {
   listen('destination', (snap) => handlers.onDestination?.(snap.val() || null));
   listen('settings', (snap) => handlers.onSettings?.(snap.val() || {}));
   listen('banned', (snap) => handlers.onBanned?.(snap.val() || {}));
+  listen('signals', (snap) => handlers.onSignals?.(snap.val() || {}));
 
   return () => unsubs.forEach((off) => { try { off(); } catch { /* ignore */ } });
 }

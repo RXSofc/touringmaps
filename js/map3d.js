@@ -11,7 +11,7 @@
  */
 import { MAP_CONFIG } from './map-config.js';
 import { buildStyle, SKIN_OPS, SKIN_GLOW_LAYERS, LIGHT_DEFAULT, LIGHT_NEON } from './map-style.js';
-import { buildRiderEl, destinationEl, riderSignature, fixOf } from './map.js';
+import { buildRiderEl, destinationEl, fuelEl, riderSignature, fixOf } from './map.js';
 import { APP } from './config.js';
 import { MotionTrack } from './motion.js';
 import { makeSnapper } from './snap.js';
@@ -500,6 +500,20 @@ export class TouringMap3D {
 
   getView() { const c = this.map.getCenter(); return { lat: c.lat, lng: c.lng, zoom: fromML(this.map.getZoom()) }; }
   setView(v) { if (v) this.map.jumpTo({ center: [v.lng, v.lat], zoom: toML(v.zoom) }); }
+
+  /** Fuel stations on the route (same surface as the 2D map). */
+  setFuelStops(list) {
+    this.fuelMarkers ||= new Map();
+    const keep = new Set((list || []).map((f) => f.id));
+    for (const [id, m] of this.fuelMarkers) if (!keep.has(id)) { m.remove(); this.fuelMarkers.delete(id); }
+    for (const f of list || []) {
+      if (this.fuelMarkers.has(f.id)) continue;
+      const el = markerHost(fuelEl(f), 30, 30);
+      el.title = f.name; el.style.zIndex = '300'; el.style.cursor = 'pointer';
+      el.addEventListener('click', (ev) => { ev.stopPropagation(); this.handlers.onFuelClick?.(f); });
+      this.fuelMarkers.set(f.id, new window.maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([f.lng, f.lat]).addTo(this.map));
+    }
+  }
 
   destroy() {
     if (this.raf) cancelAnimationFrame(this.raf);

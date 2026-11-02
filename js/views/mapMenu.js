@@ -3,10 +3,12 @@
  * Pure DOM, no app state: the touring view passes handlers and calls `sync(state)` after every render.
  */
 import { h, icon } from '../ui.js';
+import { SIGNALS } from '../signal-kinds.js';
 
 /**
  * @param {{speechAvailable:boolean, onToggleMenu:()=>void, onFit:()=>void, onDest:()=>void, onRoute:()=>void,
- *          on3d:()=>void, onSkin:()=>void, onSpeech:()=>void, onLegend:()=>void}} o
+ *          on3d:()=>void, onSkin:()=>void, onSpeech:()=>void, onLegend:()=>void, onFuel:()=>void, onQuick:()=>void,
+ *          onQuickBack:()=>void, onSignal:(id:string)=>void}} o
  */
 export function buildMapMenu(o) {
   const item = (iconName, label, onclick, { toggle = false, sub = false, hidden = false, expanded = false } = {}) => h('button', {
@@ -18,17 +20,27 @@ export function buildMapMenu(o) {
   toggle || expanded ? h('span', { class: 'mi__state' }, 'OFF') : h('span', { class: 'mi__go' }, icon('arrow-right')));
 
   const items = {
+    quick: item('chat', 'Quick message', o.onQuick),
     fit: item('fit', 'Fit all riders', o.onFit),
     dest: item('flag', 'Go to destination', o.onDest),
     route: item('route', 'Route line', o.onRoute, { toggle: true }),
     map3d: item('cube', '3D map', o.on3d, { toggle: true }),
-    skin: item('moon', 'City Night', o.onSkin, { toggle: true, sub: true, hidden: true }),
+    skin: item('moon', 'Neon Night skin', o.onSkin, { toggle: true, sub: true, hidden: true }),
+    fuel: item('fuel', 'Fuel stops', o.onFuel, { toggle: true }),
     speech: item('volume', 'Spoken navigation', o.onSpeech, { toggle: true, hidden: !o.speechAvailable }),
     legend: item('info', 'Map legend', o.onLegend, { expanded: true })
   };
   const button = h('button', { class: 'btn btn--icon', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'map-menu', 'aria-label': 'Map menu', title: 'Map menu', onclick: o.onToggleMenu }, icon('apps'));
   const menu = h('div', { class: 'map-menu', id: 'map-menu', role: 'group', 'aria-label': 'Map options', hidden: true },
-    h('div', { class: 'map-menu__head' }, 'Map'), items.fit, items.dest, items.route, items.map3d, items.skin, items.speech, items.legend);
+    h('div', { class: 'map-menu__head' }, 'Map'), items.quick, items.fit, items.dest, items.route, items.map3d, items.skin, items.fuel, items.speech, items.legend);
+
+  // the quick message panel takes the menu's place: eight big one-tap buttons, then it closes
+  const sigButtons = SIGNALS.map((g) => h('button', { class: 'qm', type: 'button', 'data-signal': g.id, onclick: () => o.onSignal(g.id) },
+    h('span', { class: 'qm__icon' }, icon(g.icon)), h('span', { class: 'qm__label' }, g.label)));
+  const quick = h('div', { class: 'map-menu map-menu--quick', id: 'quick-menu', role: 'group', 'aria-label': 'Quick message', hidden: true },
+    h('div', { class: 'map-menu__head map-menu__head--row' }, h('button', { class: 'qm-back', type: 'button', 'aria-label': 'Back to map options', onclick: () => o.onQuickBack() }, icon('back')), h('span', {}, 'Quick message')),
+    h('div', { class: 'qm-grid' }, ...sigButtons),
+    h('p', { class: 'qm-note' }, 'Sent to every rider in the room.'));
 
   const set = (btn, on, attr = 'aria-pressed') => { btn.setAttribute(attr, String(on)); const st = btn.querySelector('.mi__state'); if (st) st.textContent = on ? 'ON' : 'OFF'; };
   /** @param {{menuOpen:boolean, routeVisible:boolean, map3d:boolean, skin:boolean, speech:boolean, legendOpen:boolean}} s */
@@ -40,8 +52,12 @@ export function buildMapMenu(o) {
     items.skin.hidden = !s.map3d;
     set(items.skin, s.skin);
     set(items.legend, s.legendOpen, 'aria-expanded');
+    set(items.fuel, s.fuel);
+    if (s.fuel && s.fuelNext) items.fuel.querySelector('.mi__state').textContent = s.fuelNext;   // "12 km": the next station
+    for (const b of sigButtons) b.disabled = !!s.signalWait;
     button.setAttribute('aria-expanded', String(s.menuOpen));
-    menu.hidden = !s.menuOpen;
+    menu.hidden = !s.menuOpen || !!s.quickOpen;
+    quick.hidden = !s.menuOpen || !s.quickOpen;
   }
-  return { button, menu, items, sync };
+  return { button, menu, quick, items, sync };
 }

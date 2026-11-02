@@ -2,7 +2,7 @@
 
 ## Deploy the rules
 
-**Publish them again after every update.** The room size (`capacity`, `slotsAllowed`) is enforced here: with old rules the database answers "permission denied" when a room is created. The app then creates a default 6-rider room in the old format if it can, and otherwise tells you to publish.
+**Publish them again after every update.** (2026.11.02-1 adds `signals`, the quick messages: until the rules are published, sending one shows "not enabled yet"; everything else keeps working.) The room size (`capacity`, `slotsAllowed`) is enforced here: with old rules the database answers "permission denied" when a room is created. The app then creates a default 6-rider room in the old format if it can, and otherwise tells you to publish.
 
 - **Console:** Realtime Database → Rules → paste `database.rules.json` → Publish.
 - **CLI:** `firebase deploy --only database` (uses `../firebase.json`).
@@ -22,6 +22,7 @@ rooms/{roomId}
   invite/code                  plain code, readable by members so they can share it
   slots/{0..5}                 uid          ← capacity: exactly six keys exist
   members/{uid}                role, slot, joinedAt, displayName, avatarUrl?, motorcycle?, inviteHash?
+  signals/{uid}                k (stop|wait|behind|rest|fuel|go|careful|trouble), at   ← quick messages, one slot per rider
   locations/{uid}              latitude, longitude, accuracy, heading?, speed?, fixAt, updatedAt
   presence/{uid}               connected, lastSeen
   destination                  name, address?, latitude, longitude, source, updatedAt, updatedBy

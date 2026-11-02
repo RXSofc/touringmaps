@@ -225,3 +225,15 @@ test('voice: talking flag is writable only by that member for themselves', async
   await assertFails(db('a').ref(`rooms/${roomId}/voice/a`).set({ talking: false, at: now }));
   await assertSucceeds(db('owner').ref(`rooms/${roomId}/voice/a`).get());
 });
+
+test('quick messages: own slot, fixed kinds, members only, no free text, 2 s gap', async () => {
+  await assertSucceeds(db('a').ref().update(joinUpdate('a', 1)));
+  const p = (u) => `rooms/${roomId}/signals/${u}`;
+  await assertSucceeds(db('a').ref(p('a')).set({ k: 'stop', at: now }));
+  await assertFails(db('a').ref(p('a')).set({ k: 'go', at: now + 500 }));          // inside the 2 s gap
+  await assertFails(db('a').ref(p('owner')).set({ k: 'stop', at: now }));          // someone else's slot
+  await assertFails(db('mallory').ref(p('mallory')).set({ k: 'stop', at: now }));  // not a member
+  await assertFails(db('owner').ref(p('owner')).set({ k: 'hello', at: now }));     // unknown kind
+  await assertFails(db('owner').ref(p('owner')).set({ k: 'stop', at: now, text: 'x' }));
+  await assertSucceeds(db('owner').ref(p('a')).get());
+});

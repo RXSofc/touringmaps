@@ -46,7 +46,7 @@
       "$roomId": {
         ".read": "auth != null && data.child('members').child(auth.uid).exists()",
 
-        ".write": "auth != null && $roomId.matches(/^[A-Za-z0-9_-]{10,40}$/) && ((!data.exists() && newData.child('ownerUid').val() === auth.uid && newData.child('members').child(auth.uid).child('role').val() === 'owner' && newData.child('slots').child('0').val() === auth.uid && !newData.child('locations').exists() && !newData.child('presence').exists() && !newData.child('banned').exists()) || (data.exists() && !newData.exists() && data.child('ownerUid').val() === auth.uid))",
+        ".write": "auth != null && $roomId.matches(/^[A-Za-z0-9_-]{10,40}$/) && ((!data.exists() && newData.child('ownerUid').val() === auth.uid && newData.child('members').child(auth.uid).child('role').val() === 'owner' && newData.child('slots').child('0').val() === auth.uid && !newData.child('locations').exists() && !newData.child('presence').exists() && !newData.child('signals').exists() && !newData.child('banned').exists()) || (data.exists() && !newData.exists() && data.child('ownerUid').val() === auth.uid))",
 
         ".validate": "newData.hasChildren(['name', 'ownerUid', 'status', 'inviteCodeHash', 'createdAt', 'members', 'slots'])",
 
@@ -186,6 +186,16 @@
                 "$other": { ".validate": false }
               }
             }
+          }
+        },
+
+        "signals": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && root.child('rooms').child($roomId).child('members').child($uid).exists() && (!newData.exists() || root.child('rooms').child($roomId).child('status').val() === 'open')",
+            ".validate": "newData.hasChildren(['k', 'at']) && (!data.exists() || newData.child('at').val() >= data.child('at').val() + 2000)",
+            "k": { ".validate": "newData.isString() && (newData.val() === 'stop' || newData.val() === 'wait' || newData.val() === 'behind' || newData.val() === 'rest' || newData.val() === 'fuel' || newData.val() === 'go' || newData.val() === 'careful' || newData.val() === 'trouble')" },
+            "at": { ".validate": "newData.isNumber() && newData.val() <= now + 5000" },
+            "$other": { ".validate": false }
           }
         },
 

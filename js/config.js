@@ -30,7 +30,7 @@ export function isFirebaseConfigured() {
 
 export const APP = Object.freeze({
   name: 'VEXLANE',
-  version: '2026.10.30-5',   // shown on the sign-in screen so you can tell which build is running
+  version: '2026.11.02-1',   // shown on the sign-in screen so you can tell which build is running
 
   limits: Object.freeze({
     defaultMembers: 6,          // room size when the owner does not choose
@@ -122,6 +122,18 @@ export const APP = Object.freeze({
   }),
 
   /** "Sebentar lagi memasuki …" popup with the weather of the next kabupaten/kota (js/regionwatch.js). */
+  /** Fuel stops (SPBU) along the route, from OpenStreetMap through the Overpass API. */
+  fuel: Object.freeze({
+    enabled: true,
+    windowM: 60000,               // look this far ahead along the route in one lookup
+    refetchM: 15000,              // look again when the rider is this close to the end of the last window
+    announceM: 2000,              // the voice and popup come this far before a station
+    announceGapM: 6000,           // …and not again until the rider has ridden this far (cities have a station every km)
+    showAheadM: 40000,            // markers on the map: stations within this distance ahead
+    maxMarkers: 10,
+    retryMs: 60000                // a failed lookup waits this long before trying again
+  }),
+
   region: Object.freeze({
     enabled: true,
     aheadM: 1500,                 // look this far ahead along the route (or heading): the popup comes 0.8–1.5 km before the border

@@ -3,7 +3,7 @@
  * marker is only rebuilt when something visible about that rider changed.
  */
 import { MAP_CONFIG, usableProviders } from './map-config.js';
-import { h, formatAge, defaultAvatar } from './ui.js';
+import { h, icon, formatAge, defaultAvatar } from './ui.js';
 import { APP } from './config.js';
 import { MotionTrack } from './motion.js';
 import { makeSnapper } from './snap.js';
@@ -36,6 +36,12 @@ export function buildRiderEl(r) {
     h('div', { class: 'rider-marker__label' }, r.isSelf ? `${r.name} (you)` : r.name),
     showAge ? h('div', { class: 'rider-marker__age' }, `${r.state === 'offline' ? 'OFFLINE ' : ''}${formatAge(r.ageMs)}`) : null
   );
+}
+
+/** A fuel station badge: a small square with a pump. The label gives the brand and the distance when tapped (toast). */
+export function fuelEl(station) {
+  const el = h('div', { class: 'fuel-marker', role: 'img', 'aria-label': station.name }, icon('fuel'));
+  return el;
 }
 
 export function destinationEl(preview) {
@@ -349,6 +355,22 @@ export class TouringMap {
   /** Where the camera is, in Leaflet zoom units (shared with the 3D map so a switch keeps the view). */
   getView() { const c = this.map.getCenter(); return { lat: c.lat, lng: c.lng, zoom: this.map.getZoom() }; }
   setView(v) { if (v) this.map.setView([v.lat, v.lng], v.zoom, { animate: false }); }
+
+  /** Fuel stations on the route. Replaces the whole set; only changed markers are touched. */
+  setFuelStops(list) {
+    this.fuelMarkers ||= new Map();
+    const keep = new Set((list || []).map((f) => f.id));
+    for (const [id, m] of this.fuelMarkers) if (!keep.has(id)) { m.remove(); this.fuelMarkers.delete(id); }
+    for (const f of list || []) {
+      if (this.fuelMarkers.has(f.id)) continue;
+      const m = L.marker([f.lat, f.lng], {
+        icon: L.divIcon({ className: 'fuel-icon', html: fuelEl(f), iconSize: [30, 30], iconAnchor: [15, 15] }),
+        title: f.name, alt: f.name, zIndexOffset: 300, keyboard: true
+      }).addTo(this.map);
+      m.on('click', () => this.handlers.onFuelClick?.(f));
+      this.fuelMarkers.set(f.id, m);
+    }
+  }
 
   destroy() {
     if (this.raf) cancelAnimationFrame(this.raf);
