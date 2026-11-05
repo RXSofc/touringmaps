@@ -11,7 +11,7 @@
  *
  * Bump VERSION when you want to drop old caches.
  */
-const VERSION = 'tt-v53';
+const VERSION = 'tt-v54';
 const SHELL_CACHE = `${VERSION}-shell`;
 const SDK_CACHE = `${VERSION}-sdk`;
 
@@ -30,6 +30,8 @@ const SHELL = [
   'css/responsive.css',
   'vendor/leaflet/leaflet.css',
   'vendor/leaflet/leaflet.js',
+  'vendor/maplibre-gl/maplibre-gl.css',
+  'vendor/maplibre-gl/maplibre-gl.js',
   'js/app.js',
   'js/main.js',
   'js/config.js',

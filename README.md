@@ -48,16 +48,14 @@ It looks 0.8 to 1.5 km ahead along the route (or along your heading if there is 
 
 **Talking.** Hold the mic and everyone online hears you: WebRTC straight between phones, mono Opus, microphone open only while the button is held, nothing recorded. Discord stays one tap away as the backup.
 
-## The toll rule, in four layers
+## The toll rule, in layers
 
-Motorcycles are not allowed on toll roads in Indonesia, so a wrong guess here is not a cosmetic bug. The app does not rely on any single check.
+Motorcycles are not allowed on toll roads in Indonesia, so a wrong guess here is not a cosmetic bug. The app does not rely on any single check. Full details and setup: [docs/ROUTING.md](docs/ROUTING.md).
 
-1. The server is asked for a route with `exclude=toll`.
-2. If it still answers with toll or motorway, it is asked again with `exclude=motorway`, then without any exclusion.
-3. Every answer is scanned for the `toll` and `motorway` road classes, and for roads literally named "Tol".
-4. If every option touches one, the route is shown faded, turn guidance is turned off for it, a red warning appears and the phone gives a long vibration. A hiccup from the routing server cannot switch the toll filter off for the rest of the session either.
-
-This depends on what the routing data knows. It is a strong guard, not a guarantee, and the warning exists for the day the data is wrong.
+1. **Avoid it at the source.** The first usable router in `MAP_CONFIG.routing.chain` is asked for a toll-free route: your own OSRM built with `server/osrm/motorcycle-id.lua` (toll and motorway roads are not in its graph), or OpenRouteService with `avoid_features: tollways, highways` (through the proxy in `server/ors-proxy/`). **The public OSRM demo cannot do this**: it does not support `exclude`, so it can only detect toll, never avoid it. That is why a long trip such as Bandung to Yogyakarta came back flagged.
+2. **Steer it.** When a route is flagged, the tolled stretch is drawn as red dashes and the owner (or everyone, if the room allows) can tap up to 3 stops on non-toll roads. Every rider's route goes through them.
+3. **Scan every answer** for the `toll` and `motorway` classes, the ORS toll extra, and roads literally named "Tol".
+4. **If a route still touches one,** it is shown faded, turn guidance is off for it, a red warning appears and the phone gives a long vibration. A hiccup from the routing server cannot switch the toll filter off for the rest of the session either. If a router that really avoids toll says no toll-free route exists, the app says so instead of falling back to one that would use the toll road.
 
 ## The palette
 
@@ -83,7 +81,7 @@ Everything else (setup details, providers, voice, data lifecycle, manual test ch
 
 ## Said out loud
 
-- A route is an estimate. The public OSRM demo uses a car profile, no live traffic, no closures. Turn-by-turn is a helper, not a replacement for looking at the road.
+- A route is an estimate. The public OSRM demo uses a car profile, cannot avoid toll roads, and has no live traffic or closures; use your own router for real trips (docs/ROUTING.md). Turn-by-turn is a helper, not a replacement for looking at the road.
 - Region names and weather come from free public services (Nominatim, Open-Meteo). They are for light use, can be slow or wrong near borders, and the popup simply stays quiet when they fail.
 - The free Firebase plan has hard limits (100 simultaneous connections, 1 GB stored, 10 GB per month of traffic). Every rider's position goes to every other rider, so the traffic grows roughly with the square of the room size: a room of 30 is far heavier than a room of 6.
 - No push notifications and no background tracking in a browser or WebView.
@@ -108,6 +106,12 @@ Run the simulations from the repository root:
 ```
 node tests/guidance-sim.mjs      turn alerts and off-route detection
 node tests/routing-toll.mjs      the toll layers and the reroute retries
+node tests/routing-via.mjs       stops on the way, toll stretches, the OpenRouteService adapter
+node tests/ors-proxy-test.mjs    the Cloudflare Worker proxy
+python3 tests/osrm_profile_test.py   the OSRM motorcycle profile (needs: pip install lupa)
+python3 tests/run_browser_tests.py   all browser tests (needs Playwright; starts its own server on :8099):
+                                 3D/2D map units, toll dashes + stop badges, and a smoke test of the REAL touring screen
+                                 (toll banner -> Atur jalur -> tap the map -> stop saved -> clean route)
 node tests/regionwatch.mjs       region look-ahead and weather text
 node tests/route-snap.mjs        route colors and the dot snapped to the line
 node tests/follow-bearing.mjs    which way the 3D follow camera faces

@@ -147,6 +147,9 @@ export function buildStyle() {
     // muted red fading to soft white along the route (needs lineMetrics on the source)
     paint: { 'line-gradient': ['interpolate', ['linear'], ['line-progress'], ...ROUTE_STOPS.flat()], 'line-width': zoomWidth(8, 2.4, 18, 10) }
   });
+  // the stretch of the route that is toll road: hazard red dashes on a dark casing, drawn over the route line
+  add({ id: 'toll-casing', type: 'line', source: 'tollspans', layout: { 'line-join': 'round', 'line-cap': 'butt' }, paint: { 'line-color': '#141616', 'line-width': zoomWidth(8, 5, 18, 14) } });
+  add({ id: 'toll-line', type: 'line', source: 'tollspans', layout: { 'line-join': 'round', 'line-cap': 'butt' }, paint: { 'line-color': '#E11D2E', 'line-width': zoomWidth(8, 2.6, 18, 8), 'line-dasharray': [1.2, 1.2] } });
 
   const font = [V.fontstack];
   const name = ['coalesce', ['get', 'name:latin'], ['get', 'name']];
@@ -193,6 +196,7 @@ export function buildStyle() {
       terrain: { type: 'raster-dem', tiles: V.terrain.tiles, encoding: V.terrain.encoding, tileSize: V.terrain.tileSize, maxzoom: V.terrain.maxZoom, attribution: V.terrain.attribution },
       route: { type: 'geojson', data: EMPTY, lineMetrics: true },
       route2: { type: 'geojson', data: EMPTY },
+      tollspans: { type: 'geojson', data: EMPTY },
       accuracy: { type: 'geojson', data: EMPTY }
     },
     layers
@@ -247,6 +251,8 @@ export const SKIN_OPS = [
   ['accuracy-line', 'line-color', '#141616', N.cyan],
   ['route2-casing', 'line-color', '#141616', N.void],
   ['route2-line', 'line-color', '#FFFFFF', N.cyan],
+  ['toll-casing', 'line-color', '#141616', N.void],
+  ['toll-line', 'line-color', '#E11D2E', N.orange],
   ['route-casing', 'line-color', ROUTE_CASING, N.violet],
   ['route-line', 'line-gradient', gradient(ROUTE_STOPS), gradient(NEON_ROUTE_STOPS)],
   ['road-label', 'text-color', '#141616', N.white], ['road-label', 'text-halo-color', '#FFFFFF', N.void],

@@ -364,6 +364,24 @@ export async function saveDestination(roomId, uid, dest) {
   try { await set(ref(db, `rooms/${roomId}/destination`), record); } catch (err) { throw mapDbError(err); }
 }
 
+/**
+ * Sets the stops ("titik lewat", at most 3) every rider's route must pass on the way to the destination.
+ * Written together with updatedAt/updatedBy because the rules check the destination as a whole.
+ * An empty list removes them. Saving a NEW destination (saveDestination) clears the stops.
+ * @param {Array<{latitude:number, longitude:number}>} via
+ */
+export async function saveVia(roomId, uid, via) {
+  const clean = [];
+  for (const p of Array.isArray(via) ? via : []) {
+    if (!p || !isValidLat(p.latitude) || !isValidLng(p.longitude)) throw new RoomError('invalid-destination', 'Those coordinates are not valid.');
+    clean.push({ latitude: roundTo(p.latitude, 6), longitude: roundTo(p.longitude, 6) });
+  }
+  if (clean.length > 3) throw new RoomError('invalid-destination', 'At most 3 stops on the way are allowed.');
+  try {
+    await update(ref(db, `rooms/${roomId}/destination`), { via: clean.length ? clean : null, updatedAt: serverTimestamp(), updatedBy: uid });
+  } catch (err) { throw mapDbError(err); }
+}
+
 export async function clearDestination(roomId) {
   try { await set(ref(db, `rooms/${roomId}/destination`), null); } catch (err) { throw mapDbError(err); }
 }

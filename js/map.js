@@ -44,6 +44,11 @@ export function fuelEl(station) {
   return el;
 }
 
+/** A numbered square badge for a stop on the way ("titik lewat"). */
+export function viaEl(n) {
+  return h('div', { class: 'via-marker', role: 'img', 'aria-label': `Titik lewat ${n}` }, String(n));
+}
+
 export function destinationEl(preview) {
   const ns = 'http://www.w3.org/2000/svg';
   const make = (cls, inner) => {
@@ -113,6 +118,7 @@ export class TouringMap {
     this.previewMarker = null;
     this.routeLayer = L.layerGroup().addTo(this.map);
     this.otherRouteLayer = L.layerGroup().addTo(this.map);
+    this.tollLayer = L.layerGroup().addTo(this.map);
     this.routeVisible = true;
     this.routeDim = false;
     this.routeCoords = null;
@@ -299,6 +305,26 @@ export class TouringMap {
     this.routeLayer.eachLayer((l) => l.setStyle?.({ opacity: o }));
   }
 
+  /** The tolled stretches of the route, as a list of [[lat,lng],…] pieces: drawn as red dashes over the route line. */
+  setTollSpans(spans) {
+    this.tollLayer.clearLayers();
+    for (const span of spans || []) {
+      if (!Array.isArray(span) || span.length < 2) continue;
+      L.polyline(span, { color: '#141616', weight: 11, opacity: 1, lineCap: 'butt', lineJoin: 'round', interactive: false }).addTo(this.tollLayer);
+      L.polyline(span, { color: '#E11D2E', weight: 6, opacity: 1, dashArray: '6 7', lineCap: 'butt', lineJoin: 'round', interactive: false }).addTo(this.tollLayer);
+    }
+  }
+
+  /** Numbered markers for the stops on the way. */
+  setViaPoints(points) {
+    this.viaMarkers ||= [];
+    for (const m of this.viaMarkers) m.remove();
+    this.viaMarkers = (points || []).map((p, i) => L.marker([p.latitude, p.longitude], {
+      icon: L.divIcon({ className: 'via-icon', html: viaEl(i + 1), iconSize: [30, 30], iconAnchor: [15, 15] }),
+      title: `Titik lewat ${i + 1}`, alt: `Titik lewat ${i + 1}`, zIndexOffset: 700, interactive: false
+    }).addTo(this.map));
+  }
+
   setOtherRoute(coords) {
     this.otherRouteLayer.clearLayers();
     if (!coords) return;
@@ -312,7 +338,7 @@ export class TouringMap {
   }
 
   _applyRouteVisibility() {
-    for (const layer of [this.routeLayer, this.otherRouteLayer]) {
+    for (const layer of [this.routeLayer, this.otherRouteLayer, this.tollLayer]) {
       if (this.routeVisible) layer.addTo(this.map); else layer.remove();
     }
   }

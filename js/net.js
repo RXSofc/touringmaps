@@ -22,11 +22,11 @@ export function sleep(ms, signal) {
 }
 
 /**
- * GET a URL and parse JSON.
+ * GET (or POST, when `body` is given) a URL and parse JSON.
  * @param {string} url
- * @param {{signal?: AbortSignal, timeoutMs?: number, headers?: Record<string,string>}} [opts]
+ * @param {{signal?: AbortSignal, timeoutMs?: number, headers?: Record<string,string>, body?: object}} [opts]
  */
-export async function fetchJson(url, { signal, timeoutMs = 10000, headers } = {}) {
+export async function fetchJson(url, { signal, timeoutMs = 10000, headers, body: payload } = {}) {
   const controller = new AbortController();
   let timedOut = false;
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
@@ -39,7 +39,13 @@ export async function fetchJson(url, { signal, timeoutMs = 10000, headers } = {}
   try {
     let res;
     try {
-      res = await fetch(url, { signal: controller.signal, headers, credentials: 'omit', cache: 'no-store' });
+      const init = { signal: controller.signal, headers, credentials: 'omit', cache: 'no-store' };
+      if (payload !== undefined) {
+        init.method = 'POST';
+        init.body = typeof payload === 'string' ? payload : JSON.stringify(payload);
+        init.headers = { 'Content-Type': 'application/json', ...(headers || {}) };
+      }
+      res = await fetch(url, init);
     } catch (err) {
       if (timedOut) throw new NetError('timeout', 'The request timed out.');
       if (signal?.aborted || err?.name === 'AbortError') throw new NetError('aborted', 'Cancelled');

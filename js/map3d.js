@@ -11,7 +11,7 @@
  */
 import { MAP_CONFIG } from './map-config.js';
 import { buildStyle, SKIN_OPS, SKIN_GLOW_LAYERS, LIGHT_DEFAULT, LIGHT_NEON } from './map-style.js';
-import { buildRiderEl, destinationEl, fuelEl, riderSignature, fixOf } from './map.js';
+import { buildRiderEl, destinationEl, fuelEl, viaEl, riderSignature, fixOf } from './map.js';
 import { APP } from './config.js';
 import { MotionTrack } from './motion.js';
 import { makeSnapper } from './snap.js';
@@ -111,7 +111,7 @@ export class TouringMap3D {
     this.kind = 'maplibre';
     this.handlers = handlers;
     this.riders = new Map();     // uid -> {marker, el, sig, data, track}
-    this.data = { route: EMPTY, route2: EMPTY, accuracy: EMPTY };
+    this.data = { route: EMPTY, route2: EMPTY, tollspans: EMPTY, accuracy: EMPTY };
     this.ready = false;
     this.raf = null;
     this.followUid = null;
@@ -427,6 +427,26 @@ export class TouringMap3D {
     this._setData('route2', coords && coords.length > 1 ? lineFeature(coords) : EMPTY);
   }
 
+  /** The tolled stretches of the route ([[lat,lng],…] pieces): red dashes drawn over the route line. */
+  setTollSpans(spans) {
+    const pieces = (spans || []).filter((sp) => Array.isArray(sp) && sp.length > 1);
+    this._setData('tollspans', pieces.length ? {
+      type: 'FeatureCollection',
+      features: pieces.map((sp) => ({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: sp.map((c) => [c[1], c[0]]) } }))
+    } : EMPTY);
+  }
+
+  /** Numbered markers for the stops on the way. */
+  setViaPoints(points) {
+    for (const m of this.viaMarkers || []) m.remove();
+    this.viaMarkers = (points || []).map((p, i) => {
+      const el = markerHost(viaEl(i + 1), 30, 30);
+      el.style.zIndex = '700';
+      el.style.pointerEvents = 'none';
+      return new window.maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([p.longitude, p.latitude]).addTo(this.map);
+    });
+  }
+
   /** Faded line = "this route is out of date / not usable" (re-routing, or it touches a toll road). */
   setRouteDim(dim) {
     this.routeDim = !!dim;
@@ -449,7 +469,7 @@ export class TouringMap3D {
   _applyRouteVisibility() {
     if (!this.ready) return;
     const v = this.routeVisible ? 'visible' : 'none';
-    for (const id of ['route-casing', 'route-line', 'route2-casing', 'route2-line']) {
+    for (const id of ['route-casing', 'route-line', 'route2-casing', 'route2-line', 'toll-casing', 'toll-line']) {
       if (this.map.getLayer(id)) this.map.setLayoutProperty(id, 'visibility', v);
     }
   }
@@ -522,6 +542,7 @@ export class TouringMap3D {
     for (const e of this.riders.values()) e.marker.remove();
     this.destMarker?.remove();
     this.previewMarker?.remove();
+    for (const m of this.viaMarkers || []) m.remove();
     this.riders.clear();
     try { this.map.remove(); } catch { /* already gone */ }
   }

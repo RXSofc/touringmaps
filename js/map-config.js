@@ -104,14 +104,34 @@ const ROUTING_PROVIDERS = {
     requiresKey: false,
     policyUrl: 'https://github.com/Project-OSRM/osrm-backend/wiki/Demo-server'
   },
-  // Placeholder: your own OSRM (or an OSRM-compatible hosted service). Replace baseUrl,
-  // and add apiKey/apiKeyParam only if that service requires one.
+  // YOUR OWN OSRM built with server/osrm/motorcycle-id.lua: toll and motorway roads are not in its road graph
+  // at all, so no route can touch them (see docs/ROUTING.md). Replace baseUrl; it stays off while it holds YOUR_.
   'osrm-own': {
-    label: 'Self-hosted / hosted OSRM',
+    label: 'Own OSRM (no toll roads)',
     type: 'osrm',
     baseUrl: 'https://YOUR_OSRM_HOST/route/v1/driving',
     minIntervalMs: 300,
     requiresKey: false
+  },
+  // OpenRouteService through the small proxy in server/ors-proxy: the API key stays on the proxy, not in this file.
+  // ORS understands avoid_features, so toll roads are excluded from the search. See docs/ROUTING.md.
+  'ors-proxy': {
+    label: 'OpenRouteService via proxy (avoids toll)',
+    type: 'ors',
+    baseUrl: 'https://YOUR_WORKER.workers.dev/directions',
+    minIntervalMs: 1500,
+    requiresKey: false
+  },
+  // OpenRouteService straight from the browser. The key is visible to every rider: use the proxy above for a real trip.
+  // Check your plan's request limits at https://openrouteservice.org/plans/
+  ors: {
+    label: 'OpenRouteService (avoids toll)',
+    type: 'ors',
+    baseUrl: 'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
+    apiKey: 'YOUR_ORS_KEY',
+    minIntervalMs: 1500,
+    requiresKey: true,
+    policyUrl: 'https://openrouteservice.org/terms-of-service/'
   }
 };
 
@@ -183,12 +203,16 @@ export const MAP_CONFIG = Object.freeze({
   }),
 
   routing: Object.freeze({
-    chain: ['osrm-demo'],
+    // First usable one wins; the next is only asked when it is rate-limited or down. Entries that still hold a YOUR_
+    // placeholder are skipped. Providers that cannot exclude toll (osrm-demo) only DETECT it, so keep them last.
+    chain: ['osrm-own', 'ors-proxy', 'ors', 'osrm-demo'],
     providers: ROUTING_PROVIDERS,
     overview: 'full',             // full geometry: turn guidance measures distance along the real road line
     steps: true,                  // turn-by-turn maneuvers (needed for guidance)
     avoid: ['toll', 'motorway'],  // tried in this order (OSRM `exclude=`); a route that still touches toll/motorway is flagged. Motorcycles may not use toll roads here.
     blockClasses: ['toll', 'motorway'], // if the returned route still uses these, it is flagged UNSAFE and guidance is not run
+    maxVia: 3,                    // stops ("titik lewat") a leader can add to steer a route off toll roads
+    viaReachedM: 150,             // a stop counts as reached within this distance; the route is never sent back to it
     timeoutMs: 12000,
     cooldownMs: 60000,
     recalcMoveMeters: 300,        // re-route after moving this far from the route origin…

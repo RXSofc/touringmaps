@@ -10,7 +10,7 @@ import { MAP_CONFIG, usableProviders } from '../map-config.js';
 import { getUser, onBeforeLogout } from '../auth.js';
 import { ensureProfile } from '../profile.js';
 import {
-  subscribeRoom, saveDestination, clearDestination, updateRoomSettings, setRoomStatus, deleteRoom,
+  subscribeRoom, saveDestination, saveVia, clearDestination, updateRoomSettings, setRoomStatus, deleteRoom,
   rotateInvite, roomCapacity, removeMember, allowRejoin, leaveRoom, setCurrentRoom, forgetRoomEntry
 } from '../rooms.js';
 import { startRoomPresence, riderStatus, serverNow, serverOffset, onConnectionChange, isConnected } from '../presence.js';
@@ -25,7 +25,7 @@ import { lines as voiceLines } from '../voicelines.js';
 import { queryGeoPermission, watchGeoPermission, describePermission, PERMISSION_HELP, WakeLock } from '../permissions.js';
 import { TouringMap } from '../map.js';
 import { TouringMap3D, loadMapLibre, webglSupported } from '../map3d.js';
-import { RouteManager, fetchRoute, externalNavLinks } from '../routing.js';
+import { RouteManager, fetchRoute, externalNavLinks, normalizeVia, sortViaAlong } from '../routing.js';
 import { RegionWatch } from '../regionwatch.js';
 import { reverseRegion } from '../destinations.js';
 import { fetchWeather, weatherLine } from '../weather.js';
@@ -97,6 +97,7 @@ export function touringView(roomId) {
     tileProblem: false,
     didInitialFit: false,
     firstDestSnapshot: true,
+    viaPick: false,             // next tap on the map adds a stop on the way (leader only)
     firstMembersSnapshot: true
   };
 
@@ -391,8 +392,14 @@ export function touringView(roomId) {
         h('div', { class: 'navcard__body' }, h('strong', { class: 'navcard__title' }, 'Menjauh dari tujuan'), h('span', { class: 'navcard__detail' }, 'Putar balik atau periksa rute.')));
     }
     if (rt?.blockedClasses?.length) {
+      const canVia = canEditDestination() && currentVia().length < maxVia();
+      const hint = rt.tollSpans?.length ? ' Ruas tol ditandai merah putus-putus di peta.' : '';
       return h('div', { class: 'banner banner--danger', role: 'alert' }, icon('alert'),
-        h('div', { class: 'banner__body' }, h('strong', {}, 'Rute ini melewati jalan tol / bebas hambatan. '), 'Motor tidak boleh masuk tol, jadi petunjuk belokan dimatikan untuk rute ini. Pilih tujuan lain atau buka di aplikasi peta.'),
+        h('div', { class: 'banner__body' }, h('strong', {}, 'Rute ini melewati jalan tol / bebas hambatan. '),
+          `Motor tidak boleh masuk tol, jadi petunjuk belokan dimatikan untuk rute ini.${hint} `,
+          canEditDestination() ? 'Tambah titik lewat di jalan non-tol untuk membelokkan rute.' : 'Minta leader menambah titik lewat di jalan non-tol, atau buka di aplikasi peta.'),
+        canVia ? h('button', { class: 'btn btn--sm', type: 'button', onclick: startViaPick }, 'Atur jalur') : null,
+        currentVia().length && canEditDestination() ? h('button', { class: 'btn btn--sm', type: 'button', onclick: clearViaPoints }, 'Hapus titik lewat') : null,
         h('button', { class: 'btn btn--sm', type: 'button', onclick: onNavigateExternal }, 'Open in Maps'));
     }
     const v = guide?.view;
@@ -421,6 +428,17 @@ export function touringView(roomId) {
     if (state.publishNote) items.push(banner('publish', 'danger', 'alert', state.publishNote));
     if (state.tileProblem) items.push(banner('tiles', 'warning', 'wifi', 'Map tiles are not loading. Positions are still accurate.'));
     if (state.destNotice) items.push(banner('destnotice', 'success', 'flag', state.destNotice.text, { dismissible: true }));
+    if (state.viaPick) {
+      items.unshift(h('div', { class: 'banner banner--info', role: 'status' }, icon('route'),
+        h('div', { class: 'banner__body' }, h('strong', {}, 'Tap peta di jalan non-tol. '), `Titik itu jadi titik lewat ${currentVia().length + 1} dari ${maxVia()}; rute semua rider dihitung ulang lewat situ.`),
+        h('button', { class: 'btn btn--sm', type: 'button', onclick: () => { state.viaPick = false; render(); } }, 'Batal')));
+    } else if (currentVia().length && state.destination && !state.route?.route?.blockedClasses?.length) {
+      const can = canEditDestination();
+      items.push(h('div', { class: 'banner banner--info', role: 'status' }, icon('route'),
+        h('div', { class: 'banner__body' }, `Rute lewat ${currentVia().length} titik lewat yang diatur grup.`),
+        can && currentVia().length < maxVia() ? h('button', { class: 'btn btn--sm', type: 'button', onclick: startViaPick }, 'Tambah') : null,
+        can ? h('button', { class: 'btn btn--sm', type: 'button', onclick: clearViaPoints }, 'Hapus') : null));
+    }
     const nodes = items.filter(Boolean);
     const nav = navCard();
     if (nav) nodes.unshift(nav);
@@ -664,6 +682,44 @@ export function touringView(roomId) {
         type: 'warning', action: isOwner() ? { label: 'Add', onClick: openRoom } : undefined
       });
     } else toast('The saved Discord link is not valid. The owner needs to update it.', { type: 'error' });
+  }
+
+  /* ------------------------------------------------- stops on the way (titik lewat) */
+  const maxVia = () => MAP_CONFIG.routing.maxVia ?? 3;
+  const currentVia = () => normalizeVia(state.destination?.via);
+
+  function startViaPick() {
+    if (!state.destination || !canEditDestination()) return;
+    if (currentVia().length >= maxVia()) { toast(`Maksimal ${maxVia()} titik lewat. Hapus dulu kalau mau ganti.`, { type: 'info' }); return; }
+    state.viaPick = true;
+    render();
+  }
+
+  async function addViaPoint(ll) {
+    state.viaPick = false;
+    if (!state.destination || !canEditDestination()) { render(); return; }
+    const cur = currentVia();
+    if (cur.length >= maxVia()) { render(); return; }
+    const from = state.myFix ? { latitude: state.myFix.latitude, longitude: state.myFix.longitude } : (state.route?.route?.coords?.[0] ? { latitude: state.route.route.coords[0][0], longitude: state.route.route.coords[0][1] } : null);
+    let next = [...cur, { latitude: ll.lat, longitude: ll.lng }];
+    if (from) next = sortViaAlong(next, from, state.destination);
+    render();
+    try {
+      await saveVia(roomId, uid, next);
+      toast('Titik lewat ditambah. Menghitung ulang rute…', { type: 'success' });
+    } catch (e) { toast(e.message, { type: 'error' }); }
+  }
+
+  async function clearViaPoints() {
+    state.viaPick = false;
+    try { await saveVia(roomId, uid, []); toast('Titik lewat dihapus.', { type: 'info' }); } catch (e) { toast(e.message, { type: 'error' }); }
+    render();
+  }
+
+  /** Red dashes on the toll stretch and numbered stops: kept in one place so a map switch (2D/3D) can replay it. */
+  function drawRouteExtras() {
+    map?.setTollSpans?.(state.route?.route?.tollSpans || []);
+    map?.setViaPoints?.(currentVia());
   }
 
   function onNavigateExternal() {
@@ -942,6 +998,7 @@ export function touringView(roomId) {
       onFuelClick,
       onMapClick: (ll) => {
         if (state.menuOpen) { state.menuOpen = false; state.quickOpen = false; render(); return; }
+        if (state.viaPick) { addViaPoint(ll); return; }
         if (destPanel && destPanel.handleMapClick(ll)) return;
         if (state.selectedUid) selectRider(null);
       },
@@ -969,6 +1026,7 @@ export function touringView(roomId) {
     map.setOtherRoute(state.otherRoute?.route?.coords || null);
     map.setRouteVisible(state.routeVisible);
     map.setRouteDim(!!state.route?.rerouting || !!state.route?.route?.blockedClasses?.length);
+    drawRouteExtras();
     map.setTerrain?.(state.terrain);
     map.setSkin?.(state.skin);
     fuelSig = ''; refreshFuelMarkers();
@@ -1127,7 +1185,7 @@ export function touringView(roomId) {
         onChange: (rs) => {
           state.route = rs;
           if (rs.status === 'ok' && rs.route) {
-            if (rs.route !== lastDrawnRoute) { lastDrawnRoute = rs.route; map.setRoute(rs.route.coords); }
+            if (rs.route !== lastDrawnRoute) { lastDrawnRoute = rs.route; map.setRoute(rs.route.coords); map.setTollSpans?.(rs.route.tollSpans || []); }
             if (rs.route !== lastFuelRoute) { const sameTrip = !!lastFuelRoute && fuelDestKey === destKeyNow(); lastFuelRoute = rs.route; fuelDestKey = destKeyNow(); fuelWatch?.setRoute(rs.route, { keep: sameTrip }); }
             if (rs.route !== lastGuidedRoute) {
               lastGuidedRoute = rs.route; guide?.setRoute(rs.route);
@@ -1137,7 +1195,7 @@ export function touringView(roomId) {
               crawlWatch.reset(); voiceNav.setRoute(rs.route, { mode });
             }
           } else if (!rs.route && lastGuidedRoute) { lastGuidedRoute = null; guide?.setRoute(null); voiceNav.setRoute(null); }
-          else if (!state.destination) { lastDrawnRoute = null; map.setRoute(null); if (lastFuelRoute) { lastFuelRoute = null; fuelWatch?.setRoute(null); } }
+          else if (!state.destination) { lastDrawnRoute = null; map.setRoute(null); map.setTollSpans?.([]); if (lastFuelRoute) { lastFuelRoute = null; fuelWatch?.setRoute(null); } }
           // faded while re-routing, or when the route touches a toll road (not usable for a motorcycle)
           const tolled = !!rs.route?.blockedClasses?.length;
           map.setRouteDim(!!rs.rerouting || tolled);
@@ -1251,10 +1309,19 @@ export function touringView(roomId) {
         onBanned: (b) => { state.banned = b; render(); },
         onSignals: (m) => inbox.push(m),
         onDestination: (dest) => {
-          const changed = JSON.stringify([dest?.latitude, dest?.longitude, dest?.updatedAt]) !== JSON.stringify([state.destination?.latitude, state.destination?.longitude, state.destination?.updatedAt]);
+          const prev = state.destination;
+          const sameSpot = !!dest && !!prev && dest.latitude === prev.latitude && dest.longitude === prev.longitude;
+          const viaChanged = sameSpot && JSON.stringify(normalizeVia(dest.via)) !== JSON.stringify(normalizeVia(prev.via));
+          const changed = !viaChanged && JSON.stringify([dest?.latitude, dest?.longitude, dest?.updatedAt]) !== JSON.stringify([prev?.latitude, prev?.longitude, prev?.updatedAt]);
           state.destination = dest;
           routeManager?.setDestination(dest);
           if (!dest) { map?.setRoute(null); clearOtherRoute(); }
+          if (!dest || !canEditDestination()) state.viaPick = false;
+          map?.setViaPoints?.(normalizeVia(dest?.via));
+          if (!dest) map?.setTollSpans?.([]);
+          if (!state.firstDestSnapshot && viaChanged && dest.updatedBy !== uid) {
+            toast(`${state.members[dest.updatedBy]?.displayName || 'A rider'} mengubah titik lewat. Rute dihitung ulang.`, { type: 'info' });
+          }
           if (!state.firstDestSnapshot && changed && dest && dest.updatedBy !== uid) {
             const who = state.members[dest.updatedBy]?.displayName || 'A rider';
             state.destNotice = { text: `${who} set the destination: ${dest.name}` };
