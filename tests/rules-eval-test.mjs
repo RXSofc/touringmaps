@@ -108,4 +108,32 @@ ok('avatar rules: stills <= 15000 chars, GIFs <= 40000 chars, nothing else');
   const fresh = createOps({ cap: 6 }); fresh[0].value.signals = { [U]: { k: 'stop', at: t } };
   assert.ok(!check({}, fresh, { uid: U }).ok, 'a new room cannot be created with messages already inside'); }
 ok('quick message rules: members only, fixed kinds, no free text, own slot, 2 s gap, open rooms');
+// ---- stops on the way (destination.via)
+{ let db = withProfile(withProfile(apply({}, createOps({ cap: 6 })), B), C);
+  db = apply(db, joinOps(B, 1));
+  const dest = { name: 'Jogja', latitude: -7.79, longitude: 110.36, source: 'map', updatedAt: now, updatedBy: U };
+  db = apply(db, [{ path: ['rooms', ROOM, 'destination'], value: dest }]);
+  const viaOps = (uid, via, extra = {}) => [
+    { path: ['rooms', ROOM, 'destination', 'via'], value: via },
+    { path: ['rooms', ROOM, 'destination', 'updatedAt'], value: extra.at ?? now + 1 },
+    { path: ['rooms', ROOM, 'destination', 'updatedBy'], value: extra.by ?? uid }
+  ];
+  const P = (la, ln, more = {}) => ({ latitude: la, longitude: ln, ...more });
+  assert.ok(check(db, viaOps(U, { 0: P(-6.9, 107.6) }), { uid: U }).ok, 'owner sets one stop');
+  assert.ok(check(db, viaOps(U, { 0: P(-6.9, 107.6), 1: P(-7.2, 109), 2: P(-7.5, 110) }), { uid: U }).ok, 'owner sets three stops');
+  assert.ok(!check(db, viaOps(U, { 0: P(-6.9, 107.6), 1: P(-7.2, 109), 2: P(-7.5, 110), 3: P(-7.6, 110.1) }), { uid: U }).ok, 'a 4th stop is refused'); 
+  assert.ok(!check(db, viaOps(U, { 0: P(99, 107.6) }), { uid: U }).ok, 'latitude out of range is refused');
+  assert.ok(!check(db, viaOps(U, { 0: P(-6.9, 181) }), { uid: U }).ok, 'longitude out of range is refused');
+  assert.ok(!check(db, viaOps(U, { 0: P(-6.9, 107.6, { note: 'x' }) }), { uid: U }).ok, 'extra fields on a stop are refused');
+  assert.ok(!check(db, viaOps(U, { 0: { latitude: -6.9 } }), { uid: U }).ok, 'a stop needs both coordinates');
+  assert.ok(!check(db, viaOps(U, { x: P(-6.9, 107.6) }), { uid: U }).ok, 'stop keys must be 0..2');
+  assert.ok(!check(db, viaOps(U, { 0: P(-6.9, 107.6) }, { by: B }), { uid: U }).ok, 'updatedBy must be the writer');
+  assert.ok(!check(db, viaOps(B, { 0: P(-6.9, 107.6) }), { uid: B }).ok, 'a plain member cannot set stops while only the owner edits the destination');
+  const open = apply(db, [{ path: ['rooms', ROOM, 'settings', 'destinationPolicy'], value: 'members' }]);
+  assert.ok(check(open, viaOps(B, { 0: P(-6.9, 107.6) }), { uid: B }).ok, 'a member can when the room lets members set the destination');
+  assert.ok(!check(db, viaOps(C, { 0: P(-6.9, 107.6) }), { uid: C }).ok, 'a non-member can never');
+  const withVia = apply(db, viaOps(U, { 0: P(-6.9, 107.6) }));
+  assert.ok(check(withVia, [{ path: ['rooms', ROOM, 'destination', 'via'], value: null }, { path: ['rooms', ROOM, 'destination', 'updatedAt'], value: now + 2 }, { path: ['rooms', ROOM, 'destination', 'updatedBy'], value: U }], { uid: U }).ok, 'the stops can be removed again');
+  assert.ok(check(withVia, [{ path: ['rooms', ROOM, 'destination'], value: { ...dest, name: 'Lain', updatedAt: now + 3 } }], { uid: U }).ok, 'saving a new destination (without stops) replaces the old record'); }
+ok('destination stops: max 3, valid coordinates only, keys 0..2, same permission as the destination itself');
 console.log(`\n${n} passed`);

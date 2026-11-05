@@ -1,0 +1,21 @@
+# Toll-free motorcycle router: OSRM (data built by ./prepare.sh) behind Caddy, which adds HTTPS and CORS.
+# The app is served over https (GitHub Pages), so the router MUST be https too, or browsers block it.
+#   1. point a DNS name (e.g. route.example.com) at this server
+#   2. edit Caddyfile: replace route.example.com and https://YOUR_USER.github.io
+#   3. ./prepare.sh && docker compose up -d
+#   4. in js/map-config.js set 'osrm-own'.baseUrl to https://route.example.com/route/v1/driving
+services:
+  osrm:
+    image: osrm/osrm-backend:v5.27.1
+    restart: unless-stopped
+    volumes: ["./data:/data:ro"]
+    command: ["sh", "-c", "osrm-routed --algorithm mld --max-viaroute-size 5000 /data/$$(cat /data/REGION).osrm"]
+    expose: ["5000"]
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes: ["./Caddyfile:/etc/caddy/Caddyfile:ro", "caddy_data:/data"]
+    depends_on: [osrm]
+volumes:
+  caddy_data:

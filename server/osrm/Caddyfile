@@ -1,0 +1,11 @@
+route.example.com {
+	@preflight method OPTIONS
+	header {
+		Access-Control-Allow-Origin "https://YOUR_USER.github.io"
+		Access-Control-Allow-Methods "GET, OPTIONS"
+		Access-Control-Allow-Headers "Content-Type"
+		Vary Origin
+	}
+	respond @preflight 204
+	reverse_proxy osrm:5000
+}

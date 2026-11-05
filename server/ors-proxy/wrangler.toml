@@ -1,0 +1,9 @@
+name = "vexlane-ors-proxy"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+# comma separated list of the sites allowed to call this worker (your GitHub Pages origin, no path)
+ALLOWED_ORIGINS = "https://YOUR_USER.github.io"
+
+# the key is a SECRET, set it with:  npx wrangler secret put ORS_API_KEY

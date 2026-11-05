@@ -17,7 +17,13 @@ export const set = async (r, v) => { write(r.path, v); notify(); };
 export const update = async (r, obj) => { for (const [k, v] of Object.entries(obj)) write(`${r.path ? r.path + '/' : ''}${k}`, v); notify(); };
 export const remove = async (r) => { write(r.path, null); notify(); };
 export const get = async (r) => snap(r.path);
-export const onValue = (r, cb) => { const run = () => cb(snap(r.path)); listeners.add(run); queueMicrotask(run); return () => listeners.delete(run); };
+// Like the real SDK: the first call always fires, later ones only when the data at that path actually changed
+// (without this, a listener that writes in response to a callback loops forever).
+export const onValue = (r, cb) => {
+  let last;
+  const run = () => { const s = snap(r.path); const key = JSON.stringify(s.val()); if (last !== undefined && key === last) return; last = key; cb(s); };
+  listeners.add(run); queueMicrotask(run); return () => listeners.delete(run);
+};
 export const onDisconnect = () => ({ set: async () => {}, remove: async () => {}, cancel: async () => {} });
 export const app = {}; export const auth = { currentUser: null };
 export const initFirebase = () => {};

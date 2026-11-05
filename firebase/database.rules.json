@@ -149,7 +149,15 @@
           "longitude": { ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180" },
           "source": { ".validate": "newData.val() === 'geocoding' || newData.val() === 'coordinates' || newData.val() === 'map'" },
           "updatedAt": { ".validate": "newData.isNumber()" },
-          "updatedBy": { ".validate": "newData.isString()" },
+          "updatedBy": { ".validate": "newData.isString() && newData.val() === auth.uid" },
+          "via": {
+            "$i": {
+              ".validate": "$i.matches(/^[0-2]$/) && newData.hasChildren(['latitude', 'longitude'])",
+              "latitude": { ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90" },
+              "longitude": { ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180" },
+              "$other": { ".validate": false }
+            }
+          },
           "$other": { ".validate": false }
         },
 

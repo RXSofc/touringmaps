@@ -98,6 +98,19 @@ test('destination: owner by default, members only when policy allows', async () 
   await assertSucceeds(db('a').ref(`rooms/${roomId}/destination`).set({ ...dest, name: 'Kawah Putih', updatedBy: 'a' }));
 });
 
+test('destination stops (via): at most 3, valid points, same permission as the destination', async () => {
+  await assertSucceeds(db('a').ref().update(joinUpdate('a', 1)));
+  const dest = { name: 'Malioboro', latitude: -7.79, longitude: 110.36, source: 'map', updatedAt: now, updatedBy: 'owner' };
+  await assertSucceeds(db('owner').ref(`rooms/${roomId}/destination`).set(dest));
+  const stop = (la, ln) => ({ latitude: la, longitude: ln });
+  const patch = (uid, via) => ({ [`rooms/${roomId}/destination/via`]: via, [`rooms/${roomId}/destination/updatedAt`]: now + 1, [`rooms/${roomId}/destination/updatedBy`]: uid });
+  await assertSucceeds(db('owner').ref().update(patch('owner', [stop(-6.9, 107.6), stop(-7.2, 109)])));
+  await assertFails(db('owner').ref().update(patch('owner', [stop(1, 1), stop(2, 2), stop(3, 3), stop(4, 4)])));
+  await assertFails(db('owner').ref().update(patch('owner', [stop(95, 107.6)])));
+  await assertFails(db('a').ref().update(patch('a', [stop(-6.9, 107.6)])));
+  await assertSucceeds(db('owner').ref().update(patch('owner', null)));
+});
+
 test('settings: owner only, Discord links restricted to discord domains', async () => {
   await assertSucceeds(db('a').ref().update(joinUpdate('a', 1)));
   await assertFails(db('a').ref(`rooms/${roomId}/settings/discordInviteUrl`).set('https://discord.gg/abc'));

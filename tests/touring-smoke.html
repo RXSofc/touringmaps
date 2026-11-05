@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<script type="importmap">{"imports":{"/js/firebase.js":"/tests/fake-firebase.js","/js/auth.js":"/tests/stub-auth-touring.js","/js/profile.js":"/tests/stub-profile.js"}}</script>
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="/css/tokens.css"><link rel="stylesheet" href="/css/base.css"><link rel="stylesheet" href="/css/components.css"><link rel="stylesheet" href="/css/layout.css"><link rel="stylesheet" href="/css/responsive.css">
+<style>html,body{height:100%;margin:0}#app{height:100%}</style>
+<script src="/vendor/leaflet/leaflet.js"></script></head><body><div id="app"></div>
+<script type="module">
+// The REAL touring screen, rooms.js and routing.js against an in-memory Firebase, a stub login and a mocked routing server.
+try {
+  const { __tree } = await import('/tests/fake-firebase.js');
+  __tree['.info'] = { connected: true, serverTimeOffset: 0 };
+  (await import('/js/presence.js')).initClock();     // main.js does this in the real app
+  const R = await import('/js/rooms.js');
+  const { roomId } = await R.createRoom({ uid: 'u1abc', profile: { displayName: 'ARIQ3GP', motorcycle: 'Beat', avatarUrl: '' }, name: 'Smoke', discordUrl: '', capacity: 6 });
+  await R.saveDestination(roomId, 'u1abc', { name: 'Yogyakarta', latitude: -7.7956, longitude: 110.3695, source: 'map' });
+  window.__roomId = roomId; window.__tree = __tree;
+  const { touringView } = await import('/js/views/touring.js');
+  const view = touringView(roomId);
+  await view.mount(document.getElementById('app'), { query: {}, params: { roomId } });
+  window.__view = view; window.__ready = true;
+} catch (e) { window.__error = String(e && (e.stack || e.message || e)); }
+</script></body></html>
