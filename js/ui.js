@@ -1,14 +1,3 @@
-/**
- * UI helpers: safe DOM building (no innerHTML with user data), icons,
- * toasts, sheets, dialogs, formatters.
- */
-
-/* ---------------------------------------------------------------- DOM */
-
-/**
- * Hyperscript-style element builder. Text children are inserted as text nodes,
- * so user-controlled strings can never become markup.
- */
 export function h(tag, attrs, ...children) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs || {})) {
