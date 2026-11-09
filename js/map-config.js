@@ -123,15 +123,16 @@ const ROUTING_PROVIDERS = {
     requiresKey: false
   },
   // OpenRouteService straight from the browser. The key is visible to every rider: use the proxy above for a real trip.
-  // Check your plan's request limits at https://openrouteservice.org/plans/
+  // Keys are made at https://account.heigit.org/signup (the old api.openrouteservice.org host is deprecated and shut down).
+  // Check your plan's request limits on your account page.
   ors: {
     label: 'OpenRouteService (avoids toll)',
     type: 'ors',
-    baseUrl: 'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
+    baseUrl: 'https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson',
     apiKey: 'YOUR_ORS_KEY',
     minIntervalMs: 1500,
     requiresKey: true,
-    policyUrl: 'https://openrouteservice.org/terms-of-service/'
+    policyUrl: 'https://account.heigit.org/'
   }
 };
 

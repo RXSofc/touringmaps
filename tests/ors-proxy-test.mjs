@@ -12,7 +12,7 @@ const call = (path, { method = 'POST', origin = 'https://me.github.io', body, ra
 
 let r = await call('/directions', { body: good });
 assert.equal(r.status, 200); assert.equal(r.headers.get('Access-Control-Allow-Origin'), 'https://me.github.io'); ok('allowed origin gets through with CORS for exactly that origin');
-assert.equal(upstream[0].init.headers.Authorization, 'secret-key'); assert.ok(upstream[0].url.endsWith('/v2/directions/driving-car/geojson')); ok('the secret key is added server-side, the right ORS endpoint is called');
+assert.equal(upstream[0].init.headers.Authorization, 'secret-key'); assert.equal(upstream[0].url, 'https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson'); ok('the secret key is added server-side, the right ORS endpoint is called');
 assert.deepEqual(JSON.parse(upstream[0].init.body).options, { avoid_features: ['tollways', 'highways'] }); ok('avoid_features are forwarded');
 
 upstream = []; r = await call('/directions', { body: good, origin: 'https://evil.example' });

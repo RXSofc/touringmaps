@@ -92,6 +92,7 @@ const orsAnswer = ({ toll = false } = {}) => ({ features: [{ geometry: { type: '
 } }] });
 
 const orsProvider = R.providers.ors; orsProvider.apiKey = 'test-key';
+assert.equal(orsProvider.baseUrl, 'https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson'); assert.ok(!R.providers['ors-proxy'].baseUrl.includes('api.openrouteservice.org')); ok('ORS is called on api.heigit.org (the old api.openrouteservice.org host is deprecated and shut down)');
 useProviders('ors'); R.avoid.splice(0, R.avoid.length, 'toll', 'motorway');
 script = [{ body: orsAnswer() }]; calls.length = 0;
 r = await fetchRoute(A, B, { via: [V1] });

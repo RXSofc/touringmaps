@@ -59,7 +59,7 @@ No output = no toll road in the route.
 
 ## Option B: OpenRouteService behind the proxy
 
-1. Get a free key at <https://openrouteservice.org/dev/#/signup> and check your plan's request limits.
+1. Get a free key at <https://account.heigit.org/signup> (the old openrouteservice.org sign-up and the `api.openrouteservice.org` host are deprecated; the same keys work on `api.heigit.org`). The free Standard plan lists about 2,000 directions requests per day and 40 per minute; check your account page for the current numbers.
 2. `cd server/ors-proxy`, edit `ALLOWED_ORIGINS` in `wrangler.toml` (your GitHub Pages origin, no path).
 3. `npx wrangler deploy`, then `npx wrangler secret put ORS_API_KEY`.
 4. In `js/map-config.js` set `'ors-proxy'.baseUrl` to `https://vexlane-ors-proxy.YOUR.workers.dev/directions`.

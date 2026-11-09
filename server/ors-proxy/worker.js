@@ -8,7 +8,8 @@
  *
  * Deploy: see docs/ROUTING.md (wrangler deploy, then `wrangler secret put ORS_API_KEY`).
  */
-const UPSTREAM = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+// api.openrouteservice.org is deprecated and shut down; the same keys work on api.heigit.org
+const UPSTREAM = 'https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson';
 const AVOID = new Set(['tollways', 'highways', 'ferries']);
 const MAX_BODY = 4096;
 
