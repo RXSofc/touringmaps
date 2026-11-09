@@ -37,9 +37,10 @@ import { openDestinationPanel } from './destinationPanel.js';
 import { openRoomSheet } from './roomSheet.js';
 import { openGpsSheet } from './gpsSheet.js';
 import { buildMapMenu } from './mapMenu.js';
-import { FuelWatch, fetchStations, spokenName } from '../fuel.js';
+import { FuelWatch, fetchStations, fetchNearby, createNearbyCache, describeDirection, spokenName } from '../fuel.js';
 import { sendSignal, SignalInbox, signalById, SIGNAL_GAP_MS } from '../signals.js';
 import { openVoiceSheet } from './voiceSheet.js';
+import { openNearbyFuelSheet } from './nearbyFuelSheet.js';
 import { navigate } from '../router.js';
 
 const storage = {
@@ -108,6 +109,9 @@ export function touringView(roomId) {
   const gpsStats = { received: 0, rejected: 0, published: 0, skippedAccuracy: 0, deviceDoppler: null, log: [] };
   let gpsSheet = null;
   let voiceSheet = null;
+  let nearbySheet = null;       // "SPBU terdekat"
+  let nearbyTimer = null;       // removes its markers a few minutes after the last search
+  const nearbyCache = createNearbyCache();
   let stopPresence = null;
   let routeManager = null;
   let guide = null;
@@ -169,6 +173,7 @@ export function touringView(roomId) {
       speechAvailable: speech.supported && APP.speech.enabled,
       onToggleMenu: () => { state.menuOpen = !state.menuOpen; state.quickOpen = false; render(); },
       onFuel: onToggleFuel,
+      onNearbyFuel: openNearbyFuel,
       onQuick: () => { state.quickOpen = true; render(); },
       onQuickBack: () => { state.quickOpen = false; render(); },
       onSignal: onSendSignal,
@@ -393,14 +398,15 @@ export function touringView(roomId) {
     }
     if (rt?.blockedClasses?.length) {
       const canVia = canEditDestination() && currentVia().length < maxVia();
-      const hint = rt.tollSpans?.length ? ' Ruas tol ditandai merah putus-putus di peta.' : '';
+      const hint = rt.tollSpans?.length ? ' Ruas tol ditandai merah putus-putus.' : '';
       return h('div', { class: 'banner banner--danger', role: 'alert' }, icon('alert'),
-        h('div', { class: 'banner__body' }, h('strong', {}, 'Rute ini melewati jalan tol / bebas hambatan. '),
-          `Motor tidak boleh masuk tol, jadi petunjuk belokan dimatikan untuk rute ini.${hint} `,
-          canEditDestination() ? 'Tambah titik lewat di jalan non-tol untuk membelokkan rute.' : 'Minta leader menambah titik lewat di jalan non-tol, atau buka di aplikasi peta.'),
-        canVia ? h('button', { class: 'btn btn--sm', type: 'button', onclick: startViaPick }, 'Atur jalur') : null,
-        currentVia().length && canEditDestination() ? h('button', { class: 'btn btn--sm', type: 'button', onclick: clearViaPoints }, 'Hapus titik lewat') : null,
-        h('button', { class: 'btn btn--sm', type: 'button', onclick: onNavigateExternal }, 'Open in Maps'));
+        h('div', { class: 'banner__body' }, h('strong', {}, 'Rute ini lewat jalan tol. '),
+          `Motor dilarang masuk tol, jadi petunjuk belokan dimatikan.${hint} `,
+          canEditDestination() ? 'Tap Atur jalur, lalu pilih titik di jalan non-tol.' : 'Minta leader menambah titik lewat di jalan non-tol, atau buka di aplikasi peta.'),
+        h('div', { class: 'banner__actions' },
+          canVia ? h('button', { class: 'btn btn--sm', type: 'button', onclick: startViaPick }, 'Atur jalur') : null,
+          currentVia().length && canEditDestination() ? h('button', { class: 'btn btn--sm', type: 'button', onclick: clearViaPoints }, 'Hapus titik') : null,
+          h('button', { class: 'btn btn--sm', type: 'button', onclick: onNavigateExternal }, 'Buka di Maps')));
     }
     const v = guide?.view;
     if (!v) return null;
@@ -430,14 +436,15 @@ export function touringView(roomId) {
     if (state.destNotice) items.push(banner('destnotice', 'success', 'flag', state.destNotice.text, { dismissible: true }));
     if (state.viaPick) {
       items.unshift(h('div', { class: 'banner banner--info', role: 'status' }, icon('route'),
-        h('div', { class: 'banner__body' }, h('strong', {}, 'Tap peta di jalan non-tol. '), `Titik itu jadi titik lewat ${currentVia().length + 1} dari ${maxVia()}; rute semua rider dihitung ulang lewat situ.`),
+        h('div', { class: 'banner__body' }, h('strong', {}, 'Tap peta di jalan non-tol. '), `Jadi titik lewat ${currentVia().length + 1} dari ${maxVia()}; rute semua rider lewat situ.`),
         h('button', { class: 'btn btn--sm', type: 'button', onclick: () => { state.viaPick = false; render(); } }, 'Batal')));
     } else if (currentVia().length && state.destination && !state.route?.route?.blockedClasses?.length) {
       const can = canEditDestination();
       items.push(h('div', { class: 'banner banner--info', role: 'status' }, icon('route'),
         h('div', { class: 'banner__body' }, `Rute lewat ${currentVia().length} titik lewat yang diatur grup.`),
-        can && currentVia().length < maxVia() ? h('button', { class: 'btn btn--sm', type: 'button', onclick: startViaPick }, 'Tambah') : null,
-        can ? h('button', { class: 'btn btn--sm', type: 'button', onclick: clearViaPoints }, 'Hapus') : null));
+        can ? h('div', { class: 'banner__actions' },
+          currentVia().length < maxVia() ? h('button', { class: 'btn btn--sm', type: 'button', onclick: startViaPick }, 'Tambah') : null,
+          h('button', { class: 'btn btn--sm', type: 'button', onclick: clearViaPoints }, 'Hapus')) : null));
     }
     const nodes = items.filter(Boolean);
     const nav = navCard();
@@ -684,6 +691,41 @@ export function touringView(roomId) {
     } else toast('The saved Discord link is not valid. The owner needs to update it.', { type: 'error' });
   }
 
+  /* ------------------------------------------------- nearest fuel stations (any direction, no route needed) */
+  const nearbyFix = () => (state.myFix && Number.isFinite(state.myFix.latitude) && Number.isFinite(state.myFix.longitude) ? state.myFix : null);
+  const directionOf = (st, fix) => describeDirection(st.bearing, fix.heading, fix.speed);
+
+  async function searchNearby(fix, { force = false } = {}) {
+    if (!force) { const hit = nearbyCache.get(fix); if (hit) return hit; }
+    const res = await fetchNearby({ latitude: fix.latitude, longitude: fix.longitude });
+    nearbyCache.set(fix, res);
+    return res;
+  }
+
+  function onNearbyClick(st, n) {
+    const fix = nearbyFix();
+    toast(`${n}. ${st.name}: ± ${formatDistance(roundTo10(st.distanceM))}${fix ? `, ${directionOf(st, fix)}` : ''}`, { type: 'info' });
+  }
+
+  function openNearbyFuel() {
+    if (nearbySheet) return;
+    state.menuOpen = false; state.quickOpen = false; render();
+    nearbySheet = openNearbyFuelSheet({
+      getFix: nearbyFix,
+      search: searchNearby,
+      directionOf,
+      mapsLink: (st) => externalNavLinks({ latitude: st.lat, longitude: st.lng, name: st.name }).google,
+      onResult: (res, fix) => {
+        clearTimeout(nearbyTimer);
+        map?.setNearbyFuel?.(res.stations);
+        if (res.stations.length) nearbyTimer = setTimeout(() => map?.setNearbyFuel?.([]), 180000);
+        const st = res.stations[0];
+        if (st && state.speech) speech.say(voiceLines.fuelNearest(spokenName(st), roundTo10(st.distanceM), directionOf(st, fix)), { urgent: true, key: 'fuelNearest' });
+      },
+      onClose: () => { nearbySheet = null; }
+    });
+  }
+
   /* ------------------------------------------------- stops on the way (titik lewat) */
   const maxVia = () => MAP_CONFIG.routing.maxVia ?? 3;
   const currentVia = () => normalizeVia(state.destination?.via);
@@ -707,12 +749,19 @@ export function touringView(roomId) {
     try {
       await saveVia(roomId, uid, next);
       toast('Titik lewat ditambah. Menghitung ulang rute…', { type: 'success' });
-    } catch (e) { toast(e.message, { type: 'error' }); }
+    } catch (e) { viaSaveFailed(e); }
+  }
+
+  /** "denied" on this write almost always means the database rules in Firebase are still the old ones. */
+  function viaSaveFailed(e) {
+    if (e?.code === 'denied') {
+      toast('Firebase menolak menyimpan titik lewat. Penyebab paling umum: rules database belum dipublish ulang (database.rules.json). Lihat docs/ROUTING.md bagian Database.', { type: 'error', duration: 12000 });
+    } else toast(e.message, { type: 'error' });
   }
 
   async function clearViaPoints() {
     state.viaPick = false;
-    try { await saveVia(roomId, uid, []); toast('Titik lewat dihapus.', { type: 'info' }); } catch (e) { toast(e.message, { type: 'error' }); }
+    try { await saveVia(roomId, uid, []); toast('Titik lewat dihapus.', { type: 'info' }); } catch (e) { viaSaveFailed(e); }
     render();
   }
 
@@ -982,7 +1031,7 @@ export function touringView(roomId) {
     const msg = reason === 'deleted' ? 'This room was deleted by its owner.'
       : reason === 'removed' ? 'You were removed from this room.'
         : 'You do not have access to this room. Join with an invite code from the dashboard.';
-    destPanel?.close(); roomSheet?.close(); gpsSheet?.close();
+    destPanel?.close(); roomSheet?.close(); gpsSheet?.close(); nearbySheet?.close(); clearTimeout(nearbyTimer);
     voice?.destroy();
     mountInto(els.root, h('div', { class: 'auth-shell' }, h('div', { class: 'card' },
       h('h1', {}, 'Room unavailable'),
@@ -996,6 +1045,7 @@ export function touringView(roomId) {
     return {
       onRiderClick: (id) => selectRider(id === state.selectedUid ? null : id),
       onFuelClick,
+      onNearbyClick,
       onMapClick: (ll) => {
         if (state.menuOpen) { state.menuOpen = false; state.quickOpen = false; render(); return; }
         if (state.viaPick) { addViaPoint(ll); return; }
@@ -1347,6 +1397,8 @@ export function touringView(roomId) {
       destPanel?.close();
       roomSheet?.close();
       gpsSheet?.close();
+      nearbySheet?.close();
+      clearTimeout(nearbyTimer);
       clearOtherRoute();
       await Promise.allSettled([voice?.destroy(), stopSharing()]);
       cleanupAll();

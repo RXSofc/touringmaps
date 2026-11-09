@@ -82,7 +82,8 @@ const SHELL = [
   'js/views/touring.js',
   'js/views/destinationPanel.js',
   'js/views/roomSheet.js',
-  'js/views/mapMenu.js'
+  'js/views/mapMenu.js',
+  'js/views/nearbyFuelSheet.js'
 ];
 
 self.addEventListener('install', (event) => {

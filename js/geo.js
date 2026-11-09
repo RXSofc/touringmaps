@@ -17,6 +17,14 @@ export function haversine(a, b) {
   return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(s)));
 }
 
+/** Initial compass bearing from a to b in degrees, 0 = north, 90 = east (0 <= result < 360). */
+export function bearingDeg(a, b) {
+  const p1 = toRad(a.latitude), p2 = toRad(b.latitude), dl = toRad(b.longitude - a.longitude);
+  const y = Math.sin(dl) * Math.cos(p2);
+  const x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
 export function roundTo(n, digits) {
   const f = 10 ** digits;
   return Math.round(n * f) / f;

@@ -44,6 +44,11 @@ export function fuelEl(station) {
   return el;
 }
 
+/** A fuel pump badge with the rank (1 = nearest) for the "SPBU terdekat" list. */
+export function nearbyEl(n, station) {
+  return h('div', { class: 'fuel-marker fuel-marker--nearby', role: 'img', 'aria-label': `${n}. ${station.name}` }, icon('fuel'), h('span', { class: 'fuel-marker__n', 'aria-hidden': 'true' }, String(n)));
+}
+
 /** A numbered square badge for a stop on the way ("titik lewat"). */
 export function viaEl(n) {
   return h('div', { class: 'via-marker', role: 'img', 'aria-label': `Titik lewat ${n}` }, String(n));
@@ -313,6 +318,19 @@ export class TouringMap {
       L.polyline(span, { color: '#141616', weight: 11, opacity: 1, lineCap: 'butt', lineJoin: 'round', interactive: false }).addTo(this.tollLayer);
       L.polyline(span, { color: '#E11D2E', weight: 6, opacity: 1, dashArray: '6 7', lineCap: 'butt', lineJoin: 'round', interactive: false }).addTo(this.tollLayer);
     }
+  }
+
+  /** The nearest fuel stations (numbered 1..n). Replaces the previous set; an empty list removes them. */
+  setNearbyFuel(list) {
+    for (const m of this.nearbyMarkers || []) m.remove();
+    this.nearbyMarkers = (list || []).map((f, i) => {
+      const m = L.marker([f.lat, f.lng], {
+        icon: L.divIcon({ className: 'fuel-icon', html: nearbyEl(i + 1, f), iconSize: [34, 34], iconAnchor: [17, 17] }),
+        title: f.name, alt: f.name, zIndexOffset: 800, keyboard: true
+      }).addTo(this.map);
+      m.on('click', () => this.handlers.onNearbyClick?.(f, i + 1));
+      return m;
+    });
   }
 
   /** Numbered markers for the stops on the way. */

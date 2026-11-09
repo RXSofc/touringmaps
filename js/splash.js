@@ -1,3 +1,5 @@
+/* Launch splash driver. A classic script (not a module) so it starts before anything else loads.
+   window.__splash.done() is called by app.js once the first screen is on the page. */
 (function () {
   'use strict';
   var root = document.getElementById('splash');
@@ -8,16 +10,16 @@
   var trails = [].slice.call(root.querySelectorAll('.sp-trail'));
   var heads = [].slice.call(root.querySelectorAll('.sp-head'));
   var tag = root.querySelector('.sp-tag');
-  var TAGLINE = 'WITH⛧EVILVOID TEAM';
+  var TAGLINE = 'ONE ROAD · ONE CREW';
 
-  var START = [200, 500, 800];     
-  var DUR = 1500;                  
-  var MERGE = START[2] + DUR;      
-  var TYPE_STEP = 40;              
-  var MIN_SHOW = MERGE + TAGLINE.length * TYPE_STEP + 900;   
-  var MAX_SHOW = 25000;           
+  var START = [200, 500, 800];     // when each rider sets off (ms)
+  var DUR = 1500;                  // time to reach the meeting point
+  var MERGE = START[2] + DUR;      // all three arrive
+  var TYPE_STEP = 40;              // ms per tagline character
+  var MIN_SHOW = MERGE + TAGLINE.length * TYPE_STEP + 900;   // leave only after the tagline is typed AND has been readable for 0.9 s
+  var MAX_SHOW = 25000;            // safety: never trap the user behind the splash
 
-
+  /* split the wordmark into letters so they can be staggered */
   var n = 0;
   [].forEach.call(root.querySelectorAll('.sp-line'), function (line) {
     var text = line.textContent; line.textContent = '';
@@ -30,7 +32,7 @@
   var label = root.getAttribute('aria-label');
   if (label) [].forEach.call(root.querySelectorAll('.sp-stage'), function (el) { el.setAttribute('aria-hidden', 'true'); });
 
-  
+  /* keep the CSS road exactly on the point where the SVG routes meet, on any screen shape */
   function place() {
     try {
       var m = root.querySelector('.sp-meet');
@@ -66,7 +68,7 @@
       drawHead(i, p);
       if (t >= MERGE) heads[i].classList.remove('is-on');
     }
-    if (t >= MERGE - 500) {   
+    if (t >= MERGE - 500) {   /* the routes are absorbed into the road, tail first */
       var q = ease(clamp((t - (MERGE - 500)) / 1000));
       for (var k = 0; k < trails.length; k++) trails[k].style.strokeDasharray = '0 ' + (q * lens[k]).toFixed(1) + ' ' + lens[k];
     }
@@ -92,6 +94,7 @@
   }
 
   if (reduce) {
+    /* no motion: show the finished picture (no routes, wordmark and road in place) right away */
     trails.forEach(function (p) { p.style.display = 'none'; });
     root.classList.add('is-title', 'is-merged');
     tag.textContent = TAGLINE; MIN_SHOW = 500;

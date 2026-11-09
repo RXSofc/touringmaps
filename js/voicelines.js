@@ -47,6 +47,22 @@ export function kmWords(m) {
   return `${NUM[Math.min(whole, 10)] ?? whole}${rest} kilo`;
 }
 
+/** "Empat ratus lima puluh meter", "satu koma dua kilometer": exact enough to decide, easy to hear. */
+export function nearbyWords(m) {
+  if (!Number.isFinite(m) || m < 100) return 'kurang dari seratus meter';
+  if (m < 1000) {
+    const r = Math.round(m / 50) * 50;
+    if (r >= 1000) return 'satu kilometer';
+    const hundreds = Math.floor(r / 100);
+    const base = hundreds === 1 ? 'seratus' : `${NUM[hundreds]} ratus`;
+    return `${r % 100 ? `${hundreds ? `${base} ` : ''}lima puluh` : base} meter`;
+  }
+  const km = Math.round(m / 100) / 10;
+  if (km >= 10) return `${Math.round(km)} kilometer`;
+  const whole = Math.floor(km); const tenth = Math.round((km - whole) * 10);
+  return `${NUM[whole]}${tenth ? ` koma ${NUM[tenth]}` : ''} kilometer`;
+}
+
 const sideOf = (modifier) => (/left/.test(modifier || '') ? 'kiri' : /right/.test(modifier || '') ? 'kanan' : '');
 
 /** Which family of line a maneuver belongs to. */
@@ -146,6 +162,12 @@ export const lines = {
     const far = m >= 750 ? `${kmWords(m)} lagi` : `${distanceWords(m).toLowerCase()} lagi`;
     return pick('fuel', [`${place} ${far} ${where}. Isi bensin dulu woi, jangan sampe nuntun motor!`,
       `Ada ${place} ${far} ${where}. Lu mau kehabisan bensin di tengah jalan? Isi dulu goblok!`]).replace(/\s+\./, '.').replace(/\s{2,}/g, ' ');
+  },
+  /** The nearest station on request. `place` = spoken name, `m` = metres (straight line), `where` = "di depan kiri" / "di arah timur laut". */
+  fuelNearest: (place, m, where) => {
+    const far = nearbyWords(m);
+    return pick('fuelNearest', [`${place} terdekat, ${far} ${where}.`, `Yang paling dekat ${place}, ${far} ${where}.`])
+      .replace(/\s+\./, '.').replace(/\s{2,}/g, ' ');
   },
   /** A rider pressed a quick message. `what` = "minta berhenti dulu" etc. */
   signal: (name, kind, what) => {

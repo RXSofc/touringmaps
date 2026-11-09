@@ -11,7 +11,7 @@
  */
 import { MAP_CONFIG } from './map-config.js';
 import { buildStyle, SKIN_OPS, SKIN_GLOW_LAYERS, LIGHT_DEFAULT, LIGHT_NEON } from './map-style.js';
-import { buildRiderEl, destinationEl, fuelEl, viaEl, riderSignature, fixOf } from './map.js';
+import { buildRiderEl, destinationEl, fuelEl, nearbyEl, viaEl, riderSignature, fixOf } from './map.js';
 import { APP } from './config.js';
 import { MotionTrack } from './motion.js';
 import { makeSnapper } from './snap.js';
@@ -436,6 +436,17 @@ export class TouringMap3D {
     } : EMPTY);
   }
 
+  /** The nearest fuel stations (numbered 1..n). Replaces the previous set; an empty list removes them. */
+  setNearbyFuel(list) {
+    for (const m of this.nearbyMarkers || []) m.remove();
+    this.nearbyMarkers = (list || []).map((f, i) => {
+      const el = markerHost(nearbyEl(i + 1, f), 34, 34);
+      el.title = f.name; el.style.zIndex = '800'; el.style.cursor = 'pointer';
+      el.addEventListener('click', (ev) => { ev.stopPropagation(); this.handlers.onNearbyClick?.(f, i + 1); });
+      return new window.maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([f.lng, f.lat]).addTo(this.map);
+    });
+  }
+
   /** Numbered markers for the stops on the way. */
   setViaPoints(points) {
     for (const m of this.viaMarkers || []) m.remove();
@@ -543,6 +554,7 @@ export class TouringMap3D {
     this.destMarker?.remove();
     this.previewMarker?.remove();
     for (const m of this.viaMarkers || []) m.remove();
+    for (const m of this.nearbyMarkers || []) m.remove();
     this.riders.clear();
     try { this.map.remove(); } catch { /* already gone */ }
   }
