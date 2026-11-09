@@ -267,6 +267,7 @@ button.chip--button:active { transform: translate(2px, 2px); }
 /* ============ Banners ============ */
 .banner {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: var(--space-3);
   padding: 0.6rem 0.75rem;
@@ -285,6 +286,9 @@ button.chip--button:active { transform: translate(2px, 2px); }
 .banner--success, .banner--voice { background: var(--color-success); color: var(--color-on-success); }
 .banner--voice { font-weight: 600; }
 .banner .btn { align-self: center; }
+/* a banner with several actions: the text keeps the full width, the buttons get their own row under it */
+.banner__actions { flex: 1 0 100%; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.banner__actions .btn { flex: 1 1 auto; align-self: stretch; min-height: 44px; }
 /* the red dismiss/close button must stay readable on coloured banners */
 .banner--danger .btn--cancel, .banner--warning .btn--cancel, .banner--success .btn--cancel, .banner--voice .btn--cancel { --btn-bg: var(--color-surface); }
 
@@ -584,3 +588,16 @@ button.chip--button:active { transform: translate(2px, 2px); }
 /* Fuel stop heads-up and incoming quick messages: dark side bar, so red stays for danger only */
 .toast--fuel, .toast--msg { background: var(--color-surface); padding: 0.45rem 0.8rem; border-left: 10px solid var(--color-primary); }
 .toast--msg { border-left-color: var(--color-text); }
+
+/* "SPBU terdekat" sheet */
+.nearby { display: grid; gap: var(--space-3); }
+.nearby__msg { margin: 0; }
+.nearby__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.nearby__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3); background: var(--color-surface); border: 3px solid var(--color-border); border-radius: var(--radius-sm); box-shadow: 2px 2px 0 var(--color-border); }
+.nearby__n { flex: none; display: grid; place-items: center; width: 28px; height: 28px; background: var(--color-text); color: var(--color-surface); border-radius: 999px; font-weight: 800; }
+.nearby__info { flex: 1 1 10rem; min-width: 0; display: grid; gap: 2px; }
+.nearby__name { overflow-wrap: anywhere; }
+.nearby__meta { font-size: 0.9rem; opacity: 0.8; }
+.nearby__maps { flex: 0 0 auto; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+@media (max-width: 400px) { .nearby__maps { flex: 1 1 100%; } }
+.nearby__note { margin: 0; font-size: 0.85rem; opacity: 0.75; }

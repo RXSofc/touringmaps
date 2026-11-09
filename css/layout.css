@@ -642,4 +642,7 @@ body[data-bg="contour"][data-route="profile"] .page__title { padding: 0.1rem 0.6
 .fuel-marker .icon { width: 1.05rem; height: 1.05rem; }
 .via-marker { display: grid; place-items: center; width: 30px; height: 30px; background: var(--color-text); color: var(--color-surface); border: 3px solid var(--color-border); border-radius: var(--radius-sm); box-shadow: 2px 2px 0 var(--color-border); font: 800 0.95rem/1 var(--font-mono, monospace); }
 .map--neon .via-marker { background: #0d0e15; color: #fcee0a; border-color: #fcee0a; box-shadow: 2px 2px 0 #ff007f; }
+.fuel-marker--nearby { position: relative; width: 34px; height: 34px; outline: 3px solid var(--color-surface); }
+.fuel-marker__n { position: absolute; top: -10px; right: -10px; display: grid; place-items: center; min-width: 19px; height: 19px; padding: 0 3px; background: var(--color-text); color: var(--color-surface); border: 2px solid var(--color-surface); border-radius: 999px; font: 800 0.72rem/1 var(--font-mono, monospace); }
+.map--neon .fuel-marker__n { background: #fcee0a; color: #0d0e15; border-color: #0d0e15; }
 .map--neon .fuel-marker { background: #0d0e15; color: #39ff14; border-color: #39ff14; box-shadow: 2px 2px 0 #ff007f; }

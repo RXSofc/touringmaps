@@ -49,7 +49,7 @@ with sync_playwright() as p:
     err = pg.evaluate('window.__error')
     if err: print('MOUNT ERROR:', err[:1500]); sys.exit(2)
 
-    banner = pg.locator('.banner--danger', has_text='melewati jalan tol')
+    banner = pg.locator('.banner--danger', has_text='lewat jalan tol')
     try:
         banner.wait_for(timeout=20000)
     except Exception:
@@ -97,7 +97,7 @@ with sync_playwright() as p:
     pg.locator('.banner--info button', has_text='Hapus').click()
     pg.wait_for_function("document.querySelectorAll('.via-marker').length === 0", timeout=10000)
     check(json.loads(pg.evaluate("JSON.stringify(window.__tree.rooms[window.__roomId].destination)")).get('via') is None, 'removing deletes the stop from the room')
-    pg.locator('.banner--danger', has_text='melewati jalan tol').wait_for(timeout=15000)
+    pg.locator('.banner--danger', has_text='lewat jalan tol').wait_for(timeout=15000)
     check(True, 'without the stop the route is tolled again and the banner returns')
 
     # a second tap while NOT in pick mode must not add anything
