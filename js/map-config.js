@@ -118,7 +118,7 @@ const ROUTING_PROVIDERS = {
   'ors-proxy': {
     label: 'OpenRouteService via proxy (avoids toll)',
     type: 'ors',
-    baseUrl: 'https://YOUR_WORKER.workers.dev/directions',
+    baseUrl: 'https://vexlane-vvt.rxsofc.workers.dev/directions',
     minIntervalMs: 1500,
     requiresKey: false
   },
