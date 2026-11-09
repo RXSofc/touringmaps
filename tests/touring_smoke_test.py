@@ -59,6 +59,7 @@ with sync_playwright() as p:
         sys.exit(3)
     check(True, 'the toll banner shows when the route is tolled (the demo refused exclude, the plain route has toll)')
     check('merah putus-putus' in banner.inner_text(), 'it says the toll stretch is marked on the map')
+    check('tidak bisa menghindari tol' in banner.inner_text() and 'OSRM' in banner.inner_text(), 'it names the router and says it cannot avoid toll (the demo server): %r' % banner.inner_text()[:260])
     check(pg.locator('.banner--danger button', has_text='Atur jalur').count() == 1, 'the owner is offered "Atur jalur"')
     check(pg.locator('.leaflet-overlay-pane path[stroke-dasharray]').count() >= 1, 'the toll stretch is drawn as dashed red on the real map')
     check(pg.locator('.via-marker').count() == 0, 'no stop badges yet')

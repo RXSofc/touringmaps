@@ -399,9 +399,13 @@ export function touringView(roomId) {
     if (rt?.blockedClasses?.length) {
       const canVia = canEditDestination() && currentVia().length < maxVia();
       const hint = rt.tollSpans?.length ? ' Ruas tol ditandai merah putus-putus.' : '';
+      // say WHY, so nobody keeps wondering: the public demo router cannot avoid toll at all
+      const why = rt.tollAvoidedByServer
+        ? ' Router sudah mencoba menghindari tol, tapi tidak ada jalur lain yang cocok.'
+        : ` Router yang dipakai (${rt.providerLabel || 'tidak diketahui'}) tidak bisa menghindari tol. Pasang router bebas-tol: docs/ROUTING.md.`;
       return h('div', { class: 'banner banner--danger', role: 'alert' }, icon('alert'),
         h('div', { class: 'banner__body' }, h('strong', {}, 'Rute ini lewat jalan tol. '),
-          `Motor dilarang masuk tol, jadi petunjuk belokan dimatikan.${hint} `,
+          `Motor dilarang masuk tol, jadi petunjuk belokan dimatikan.${hint}${why} `,
           canEditDestination() ? 'Tap Atur jalur, lalu pilih titik di jalan non-tol.' : 'Minta leader menambah titik lewat di jalan non-tol, atau buka di aplikasi peta.'),
         h('div', { class: 'banner__actions' },
           canVia ? h('button', { class: 'btn btn--sm', type: 'button', onclick: startViaPick }, 'Atur jalur') : null,

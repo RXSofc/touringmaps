@@ -66,6 +66,15 @@ No output = no toll road in the route.
 
 Always set `ALLOWED_ORIGINS`. Without it the worker accepts any site and your key's quota is free for everyone.
 
+No terminal? Use the Cloudflare dashboard instead of wrangler:
+
+1. Cloudflare dashboard, **Workers & Pages**, **Create**, **Hello World**, deploy it, then **Edit code**.
+2. Replace the code with the contents of `server/ors-proxy/worker.js` and **Deploy**.
+3. **Settings, Variables and Secrets**: add the secret `ORS_API_KEY` (your ORS key) and the text variable `ALLOWED_ORIGINS` (for a GitHub Pages site `https://YOURNAME.github.io`, lowercase, no path). Deploy again.
+4. Copy the worker address (`https://NAME.SUBDOMAIN.workers.dev`) and set `'ors-proxy'.baseUrl` in `js/map-config.js` to that address plus `/directions`.
+
+Never commit the ORS key itself to a public repository: it belongs in the worker's secret only.
+
 The worker rebuilds the request from a whitelist (2–5 coordinates, `tollways` / `highways` / `ferries`), so the key
 cannot be used for other ORS services. ORS answers are passed through as they are; the app reads error `2009`/`2010`
 ("no route") and `429` (rate limit).
