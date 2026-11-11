@@ -45,7 +45,7 @@ const TILE_PROVIDERS = {
     attribution: '&copy; <a href="https://www.maptiler.com/copyright/" target="_blank" rel="noopener">MapTiler</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
     maxZoom: 21,
     requiresKey: true,
-    apiKey: 'YOUR_MAPTILER_KEY',     // restrict to your github.io domain in the MapTiler dashboard
+    apiKey: 'k6rULYyh1euZGPK6cYUg',     // restrict to your github.io domain in the MapTiler dashboard
     policyUrl: 'https://www.maptiler.com/terms/'
   },
   stadia: {
@@ -86,7 +86,7 @@ const GEOCODER_PROVIDERS = {
     type: 'nominatim',
     baseUrl: 'https://us1.locationiq.com/v1',
     apiKeyParam: 'key',
-    apiKey: 'YOUR_LOCATIONIQ_KEY',   // restrict by domain in the provider dashboard
+    apiKey: 'pk.c5c4c25fc21917ce18ecaf7c7e9f1692',   // restrict by domain in the provider dashboard
     minIntervalMs: 600,
     requiresKey: true,
     policyUrl: 'https://locationiq.com/terms'
