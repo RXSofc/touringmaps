@@ -83,7 +83,8 @@ const SHELL = [
   'js/views/destinationPanel.js',
   'js/views/roomSheet.js',
   'js/views/mapMenu.js',
-  'js/views/nearbyFuelSheet.js'
+  'js/views/nearbyFuelSheet.js',
+  'js/traffic.js'
 ];
 
 self.addEventListener('install', (event) => {

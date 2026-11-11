@@ -118,7 +118,7 @@ const ROUTING_PROVIDERS = {
   'ors-proxy': {
     label: 'OpenRouteService via proxy (avoids toll)',
     type: 'ors',
-    baseUrl: 'https://vexlane-vvt.rxsofc.workers.dev/directions',
+    baseUrl: 'https://YOUR_WORKER.workers.dev/directions',
     minIntervalMs: 1500,
     requiresKey: false
   },
@@ -189,6 +189,22 @@ export const MAP_CONFIG = Object.freeze({
     })
   }),
 
+  // OPTIONAL live traffic colours on the map (TomTom raster flow tiles). Off and invisible until a key is set.
+  // Use a key that is made ONLY for tiles: it sits in this public file, so the worst a stranger can do is use up
+  // the free daily tile allowance (the layer then switches itself off). Keep the routing key out of here (see docs/TRAFFIC.md).
+  // Left as a plain object on purpose so tests can set a key.
+  traffic: {
+    provider: 'tomtom',
+    baseUrl: 'https://api.tomtom.com/traffic/map/4/tile/flow',
+    apiKey: 'YOUR_TOMTOM_TILE_KEY',
+    style: 'relative0',           // TomTom's recommended style; the dark twin is used for the NEON skin
+    darkStyle: 'relative0-dark',
+    tileSize: 512,                // 512 px tiles: a quarter of the requests of 256 px tiles for the same screen
+    minZoom: 8,                   // below this, nobody can read traffic anyway and tiles would be wasted
+    opacity: 0.85,
+    refreshMs: 180000,            // traffic changes: reload the tiles every 3 minutes while the layer is on
+    attribution: '© TomTom'
+  },
   geocoder: Object.freeze({
     chain: ['nominatim', 'photon'],
     providers: GEOCODER_PROVIDERS,

@@ -7,7 +7,7 @@ import { SIGNALS } from '../signal-kinds.js';
 
 /**
  * @param {{speechAvailable:boolean, onToggleMenu:()=>void, onFit:()=>void, onDest:()=>void, onRoute:()=>void,
- *          on3d:()=>void, onSkin:()=>void, onSpeech:()=>void, onLegend:()=>void, onFuel:()=>void, onNearbyFuel:()=>void, onQuick:()=>void,
+ *          on3d:()=>void, onSkin:()=>void, onSpeech:()=>void, onLegend:()=>void, onFuel:()=>void, onNearbyFuel:()=>void, trafficAvailable?:boolean, onTraffic?:()=>void, onQuick:()=>void,
  *          onQuickBack:()=>void, onSignal:(id:string)=>void}} o
  */
 export function buildMapMenu(o) {
@@ -28,12 +28,13 @@ export function buildMapMenu(o) {
     skin: item('moon', 'Neon Night skin', o.onSkin, { toggle: true, sub: true, hidden: true }),
     fuel: item('fuel', 'Fuel stops', o.onFuel, { toggle: true }),
     nearbyFuel: item('fuel', 'SPBU terdekat', o.onNearbyFuel),
+    traffic: item('route', 'Kemacetan', o.onTraffic, { toggle: true, hidden: !o.trafficAvailable }),
     speech: item('volume', 'Spoken navigation', o.onSpeech, { toggle: true, hidden: !o.speechAvailable }),
     legend: item('info', 'Map legend', o.onLegend, { expanded: true })
   };
   const button = h('button', { class: 'btn btn--icon', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'map-menu', 'aria-label': 'Map menu', title: 'Map menu', onclick: o.onToggleMenu }, icon('apps'));
   const menu = h('div', { class: 'map-menu', id: 'map-menu', role: 'group', 'aria-label': 'Map options', hidden: true },
-    h('div', { class: 'map-menu__head' }, 'Map'), items.quick, items.fit, items.dest, items.route, items.map3d, items.skin, items.fuel, items.nearbyFuel, items.speech, items.legend);
+    h('div', { class: 'map-menu__head' }, 'Map'), items.quick, items.fit, items.dest, items.route, items.map3d, items.skin, items.fuel, items.nearbyFuel, items.traffic, items.speech, items.legend);
 
   // the quick message panel takes the menu's place: eight big one-tap buttons, then it closes
   const sigButtons = SIGNALS.map((g) => h('button', { class: 'qm', type: 'button', 'data-signal': g.id, onclick: () => o.onSignal(g.id) },
@@ -54,6 +55,7 @@ export function buildMapMenu(o) {
     set(items.skin, s.skin);
     set(items.legend, s.legendOpen, 'aria-expanded');
     set(items.fuel, s.fuel);
+    set(items.traffic, !!s.traffic);
     if (s.fuel && s.fuelNext) items.fuel.querySelector('.mi__state').textContent = s.fuelNext;   // "12 km": the next station
     for (const b of sigButtons) b.disabled = !!s.signalWait;
     button.setAttribute('aria-expanded', String(s.menuOpen));

@@ -41,6 +41,7 @@ import { FuelWatch, fetchStations, fetchNearby, createNearbyCache, describeDirec
 import { sendSignal, SignalInbox, signalById, SIGNAL_GAP_MS } from '../signals.js';
 import { openVoiceSheet } from './voiceSheet.js';
 import { openNearbyFuelSheet } from './nearbyFuelSheet.js';
+import { trafficAvailable, trafficLayerOptions, TrafficHealth } from '../traffic.js';
 import { navigate } from '../router.js';
 
 const storage = {
@@ -90,6 +91,7 @@ export function touringView(roomId) {
     map3d: false,               // 3D (MapLibre) map active; remembered per device
     terrain: 1,   // 3D map hills are part of the 3D button now: always a soft, nearly flat relief (0 only if the elevation tiles fail)
     speech: storage.get('tt.speech') === '1',   // spoken navigation (browser text-to-speech), off until the rider turns it on
+    traffic: trafficAvailable() && storage.get('tt.traffic') === '1',   // OPTIONAL live traffic colours (TomTom), off until a key is set
     skin: storage.get('tt.skin') === '1',   // Neon Night map skin (3D map only)
     voiceMicHinted: false,
     backgroundGapMs: null,
@@ -110,6 +112,8 @@ export function touringView(roomId) {
   let gpsSheet = null;
   let voiceSheet = null;
   let nearbySheet = null;       // "SPBU terdekat"
+  let trafficTimer = null;      // reloads the traffic tiles every few minutes while the layer is on
+  let trafficHealth = null;     // switches the layer off when TomTom refuses every tile
   let nearbyTimer = null;       // removes its markers a few minutes after the last search
   const nearbyCache = createNearbyCache();
   let stopPresence = null;
@@ -174,6 +178,8 @@ export function touringView(roomId) {
       onToggleMenu: () => { state.menuOpen = !state.menuOpen; state.quickOpen = false; render(); },
       onFuel: onToggleFuel,
       onNearbyFuel: openNearbyFuel,
+      trafficAvailable: trafficAvailable(),
+      onTraffic: onToggleTraffic,
       onQuick: () => { state.quickOpen = true; render(); },
       onQuickBack: () => { state.quickOpen = false; render(); },
       onSignal: onSendSignal,
@@ -195,7 +201,10 @@ export function touringView(roomId) {
       h('div', { class: 'legend__row' }, h('span', { class: 'dot dot--stale' }), 'Position is old'),
       h('div', { class: 'legend__row' }, h('span', { class: 'dot dot--offline' }), 'Offline (last known)'),
       h('div', { class: 'legend__row' }, icon('flag'), 'Destination'),
-      h('div', { class: 'legend__row' }, h('span', { class: 'legend__line' }), 'My route'));
+      h('div', { class: 'legend__row' }, h('span', { class: 'legend__line' }), 'My route'),
+      trafficAvailable() ? h('div', { class: 'legend__row' },
+        h('span', { class: 'dot', style: 'background:#2BC82B' }), h('span', { class: 'dot', style: 'background:#FFD60A' }), h('span', { class: 'dot', style: 'background:#E5322D' }),
+        'Kemacetan (aktif): hijau lancar, kuning padat, merah macet. Data TomTom.') : null);
 
     els.riderPanel = h('section', { class: 'rider-panel panel', 'aria-label': 'Riders', hidden: true });
     els.riderCard = h('section', { class: 'rider-card panel', 'aria-label': 'Selected rider', hidden: true });
@@ -695,6 +704,30 @@ export function touringView(roomId) {
     } else toast('The saved Discord link is not valid. The owner needs to update it.', { type: 'error' });
   }
 
+  /* ------------------------------------------------- live traffic colours (optional, TomTom) */
+  function applyTraffic() {
+    clearInterval(trafficTimer); trafficTimer = null;
+    if (!state.traffic || !trafficAvailable()) { map?.setTrafficLayer?.(null); return; }
+    trafficHealth = new TrafficHealth({
+      onTrip: () => {
+        state.traffic = false;
+        storage.set('tt.traffic', '0');
+        applyTraffic(); render();
+        toast('Lapisan kemacetan tidak bisa dimuat (kuota TomTom habis, key salah, atau koneksi putus). Peta dan rute tetap jalan.', { type: 'error' });
+      }
+    });
+    map?.setTrafficLayer?.(trafficLayerOptions({ neon: state.skin && state.map3d, onOk: () => trafficHealth?.ok(), onFail: () => trafficHealth?.fail() }));
+    trafficTimer = setInterval(() => map?.refreshTraffic?.(), MAP_CONFIG.traffic.refreshMs);
+  }
+
+  function onToggleTraffic() {
+    if (!trafficAvailable()) return;
+    state.traffic = !state.traffic;
+    storage.set('tt.traffic', state.traffic ? '1' : '0');
+    applyTraffic();
+    render();
+  }
+
   /* ------------------------------------------------- nearest fuel stations (any direction, no route needed) */
   const nearbyFix = () => (state.myFix && Number.isFinite(state.myFix.latitude) && Number.isFinite(state.myFix.longitude) ? state.myFix : null);
   const directionOf = (st, fix) => describeDirection(st.bearing, fix.heading, fix.speed);
@@ -1035,7 +1068,7 @@ export function touringView(roomId) {
     const msg = reason === 'deleted' ? 'This room was deleted by its owner.'
       : reason === 'removed' ? 'You were removed from this room.'
         : 'You do not have access to this room. Join with an invite code from the dashboard.';
-    destPanel?.close(); roomSheet?.close(); gpsSheet?.close(); nearbySheet?.close(); clearTimeout(nearbyTimer);
+    destPanel?.close(); roomSheet?.close(); gpsSheet?.close(); nearbySheet?.close(); clearTimeout(nearbyTimer); clearInterval(trafficTimer);
     voice?.destroy();
     mountInto(els.root, h('div', { class: 'auth-shell' }, h('div', { class: 'card' },
       h('h1', {}, 'Room unavailable'),
@@ -1083,6 +1116,7 @@ export function touringView(roomId) {
     drawRouteExtras();
     map.setTerrain?.(state.terrain);
     map.setSkin?.(state.skin);
+    applyTraffic();
     fuelSig = ''; refreshFuelMarkers();
   }
 
@@ -1189,6 +1223,7 @@ export function touringView(roomId) {
     state.skin = !state.skin;
     storage.set('tt.skin', state.skin ? '1' : '0');
     map.setSkin(state.skin);
+    if (state.traffic) applyTraffic();          // NEON uses the dark traffic style
     map.glitch?.();
     render();
   }
@@ -1233,6 +1268,7 @@ export function touringView(roomId) {
 
       map = createMap('2d');
       cleanups.push(() => map?.destroy());
+      applyTraffic();                           // a remembered ON switches the layer on from the first moment
       if (storage.get('tt.map3d') === '1') setTimeout(() => { if (!destroyed) setMapMode(true, { silent: true }); }, 0);
 
       routeManager = new RouteManager({
@@ -1402,7 +1438,7 @@ export function touringView(roomId) {
       roomSheet?.close();
       gpsSheet?.close();
       nearbySheet?.close();
-      clearTimeout(nearbyTimer);
+      clearTimeout(nearbyTimer); clearInterval(trafficTimer);
       clearOtherRoute();
       await Promise.allSettled([voice?.destroy(), stopSharing()]);
       cleanupAll();

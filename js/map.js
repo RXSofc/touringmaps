@@ -320,6 +320,25 @@ export class TouringMap {
     }
   }
 
+  /** The live traffic layer (see js/traffic.js). null removes it. Tiles are 512 px, so Leaflet asks for the zoom one below the map's. */
+  setTrafficLayer(opts) {
+    this.trafficLayer?.remove();
+    this.trafficLayer = null;
+    if (!opts) return;
+    const half = opts.tileSize === 512;
+    const layer = L.tileLayer(opts.url, {
+      tileSize: opts.tileSize, zoomOffset: half ? -1 : 0, minZoom: opts.minZoom, maxZoom: 19, opacity: opts.opacity ?? 0.85,
+      attribution: opts.attribution, className: 'traffic-tiles', updateWhenIdle: true, keepBuffer: 1, detectRetina: false
+    });
+    layer.on('tileload', () => opts.onOk?.());
+    layer.on('tileerror', () => opts.onFail?.());
+    layer.addTo(this.map);
+    this.trafficLayer = layer;
+  }
+
+  /** Asks for fresh traffic tiles. */
+  refreshTraffic() { this.trafficLayer?.redraw(); }
+
   /** The nearest fuel stations (numbered 1..n). Replaces the previous set; an empty list removes them. */
   setNearbyFuel(list) {
     for (const m of this.nearbyMarkers || []) m.remove();

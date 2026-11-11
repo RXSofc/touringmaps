@@ -11,6 +11,9 @@ try {
   __tree['.info'] = { connected: true, serverTimeOffset: 0 };
   (await import('/js/presence.js')).initClock();     // main.js does this in the real app
   const R = await import('/js/rooms.js');
+  // tests can switch the optional TomTom traffic layer on: ?trafficKey=TESTKEY
+  const tk = new URLSearchParams(location.search).get('trafficKey');
+  if (tk) (await import('/js/map-config.js')).MAP_CONFIG.traffic.apiKey = tk;
   const { roomId } = await R.createRoom({ uid: 'u1abc', profile: { displayName: 'ARIQ3GP', motorcycle: 'Beat', avatarUrl: '' }, name: 'Smoke', discordUrl: '', capacity: 6 });
   await R.saveDestination(roomId, 'u1abc', { name: 'Yogyakarta', latitude: -7.7956, longitude: 110.3695, source: 'map' });
   window.__roomId = roomId; window.__tree = __tree;

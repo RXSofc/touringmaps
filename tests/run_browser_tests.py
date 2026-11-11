@@ -3,7 +3,7 @@
    python3 tests/run_browser_tests.py overlays   only the ones whose name contains 'overlays'"""
 import subprocess, sys, time, os, signal
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TESTS = ['map3d_test.py', 'map2d_route_test.py', 'overlays_test.py', 'touring_smoke_test.py', 'banner_layout_test.py', 'nearby_fuel_test.py']
+TESTS = ['map3d_test.py', 'map2d_route_test.py', 'overlays_test.py', 'touring_smoke_test.py', 'banner_layout_test.py', 'nearby_fuel_test.py', 'traffic_test.py']
 want = sys.argv[1:]
 server = subprocess.Popen([sys.executable, '-m', 'http.server', '8099'], cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
 time.sleep(1.2)

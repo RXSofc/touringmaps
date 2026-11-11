@@ -155,7 +155,10 @@ export class TouringMap3D {
       this._applyRouteDim();
       this._applyTerrain();
       this._applySkin();
+      this._applyTraffic();
     });
+    // the traffic source reports its loaded tiles (failures arrive through _onError) so the touring screen can switch it off
+    this.map.on('data', (e) => { if (e?.sourceId === 'traffic' && e.tile) this.trafficOpts?.onOk?.(); });
     this.map.on('dragstart', (e) => { if (e.originalEvent) handlers.onUserPan?.(); });
     this.map.on('click', (e) => handlers.onMapClick?.({ lat: e.lngLat.lat, lng: e.lngLat.lng }));
     this.map.on('error', (e) => this._onError(e));
@@ -163,6 +166,8 @@ export class TouringMap3D {
   }
 
   _onError(e) {
+    // a refused traffic tile is the traffic layer's business only: it must never count towards the 2D fallback
+    if (e?.sourceId === 'traffic') { this.trafficOpts?.onFail?.(); return; }
     if (e?.sourceId === 'terrain') {
       this.terrainErrors += 1;
       if (this.terrainLevel > 0 && this.terrainErrors >= V.terrain.errorsBeforeOff) {
@@ -434,6 +439,29 @@ export class TouringMap3D {
       type: 'FeatureCollection',
       features: pieces.map((sp) => ({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: sp.map((c) => [c[1], c[0]]) } }))
     } : EMPTY);
+  }
+
+  /** The live traffic layer (see js/traffic.js): a raster source under the route. null removes it. */
+  setTrafficLayer(opts) {
+    this.trafficOpts = opts || null;
+    if (this.ready) this._applyTraffic();       // before the style has loaded, the 'load' handler applies it
+  }
+
+  refreshTraffic() { if (this.ready && this.trafficOpts) this._applyTraffic(); }
+
+  _applyTraffic() {
+    const m = this.map;
+    try {
+      if (m.getLayer('traffic-flow')) m.removeLayer('traffic-flow');
+      if (m.getSource('traffic')) m.removeSource('traffic');
+    } catch { /* nothing to remove */ }
+    const o = this.trafficOpts;
+    if (!o) return;
+    m.addSource('traffic', { type: 'raster', tiles: [o.url], tileSize: o.tileSize, maxzoom: 22, attribution: o.attribution });
+    m.addLayer({
+      id: 'traffic-flow', type: 'raster', source: 'traffic', minzoom: Math.max(0, (o.minZoom ?? 8) - 1),   // MapLibre's zoom is one below Leaflet's
+      paint: { 'raster-opacity': o.opacity ?? 0.85 }
+    }, m.getLayer('route-casing') ? 'route-casing' : undefined);
   }
 
   /** The nearest fuel stations (numbered 1..n). Replaces the previous set; an empty list removes them. */
